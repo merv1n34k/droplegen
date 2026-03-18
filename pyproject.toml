@@ -1,0 +1,22 @@
+[project]
+name = "droplegen"
+version = "0.1.0"
+description = "Fluigent Drop-Seq microfluidics control application"
+requires-python = ">=3.12"
+dependencies = [
+    "PyQt6>=6.5",
+    "setuptools<71",
+]
+
+[project.scripts]
+droplegen = "droplegen.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.uv]
+python-preference = "only-managed"
