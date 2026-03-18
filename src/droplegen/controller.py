@@ -1,0 +1,206 @@
+"""Mediator between UI, pipeline, and backend."""
+import logging
+from queue import Queue
+
+from droplegen.backend.sdk_wrapper import FluigentSDK
+from droplegen.backend.hardware_manager import HardwareManager, HardwareState
+from droplegen.backend.channel_manager import ChannelManager
+from droplegen.backend.acquisition import AcquisitionThread, DataSnapshot
+from droplegen.logger.csv_logger import CsvLogger
+from droplegen.pipeline.engine import PipelineEngine, PipelineEvent, PipelineState
+from droplegen.pipeline.steps import PipelineStep
+from droplegen.pipeline.triggers import ConfirmationTrigger, create_trigger
+from droplegen.config import PIPELINES
+
+log = logging.getLogger(__name__)
+
+
+class Controller:
+    """Central coordinator: wires backend, pipeline, and UI data queues."""
+
+    def __init__(self):
+        self.sdk = FluigentSDK()
+        self.hw_manager = HardwareManager(self.sdk)
+        self.channel_manager = ChannelManager(self.sdk)
+        self.csv_logger = CsvLogger()
+        self.data_queue: Queue[DataSnapshot] = Queue(maxsize=50)
+        self.pipeline_queue: Queue[PipelineEvent] = Queue(maxsize=50)
+        self._acquisition: AcquisitionThread | None = None
+        self._pipeline: PipelineEngine | None = None
+        self._recording = False
+
+    # --- Hardware ---
+    def connect(self, simulated: bool = False) -> HardwareState:
+        state = self.hw_manager.connect(simulated=simulated)
+        # Configure channel manager with sensor-pressure pairs
+        n_sensors = len(state.sensor_channels)
+        n_pressure = len(state.pressure_channels)
+        pairs = []
+        for i in range(min(n_sensors, n_pressure)):
+            pairs.append((state.sensor_channels[i].index, state.pressure_channels[i].index))
+        self.channel_manager.configure_channels(pairs)
+        # Auto-start polling so live values appear immediately
+        self.start_polling()
+        return state
+
+    def disconnect(self) -> None:
+        self.stop_recording()
+        self.stop_polling()
+        self.stop_pipeline()
+        self.hw_manager.disconnect()
+
+    # --- Polling (acquisition without CSV) ---
+    def start_polling(self) -> None:
+        if self._acquisition and self._acquisition.is_alive():
+            return
+        state = self.hw_manager.state
+        self._acquisition = AcquisitionThread(
+            sdk=self.sdk,
+            pressure_count=len(state.pressure_channels),
+            sensor_count=len(state.sensor_channels),
+            data_queue=self.data_queue,
+            csv_logger=self.csv_logger if self._recording else None,
+        )
+        self._acquisition.start()
+        log.info("Polling started")
+
+    def stop_polling(self) -> None:
+        if self._acquisition and self._acquisition.is_alive():
+            self._acquisition.stop()
+            self._acquisition.join(timeout=2.0)
+            self._acquisition = None
+        log.info("Polling stopped")
+
+    @property
+    def polling_active(self) -> bool:
+        return self._acquisition is not None and self._acquisition.is_alive()
+
+    # --- Recording (CSV only) ---
+    def start_recording(self) -> str:
+        if self._recording:
+            return self.csv_logger.filepath or ""
+        state = self.hw_manager.state
+        filepath = self.csv_logger.start(
+            len(state.pressure_channels), len(state.sensor_channels)
+        )
+        self._recording = True
+        # Re-attach CSV logger to running acquisition
+        if self._acquisition:
+            self._acquisition._csv_logger = self.csv_logger
+        log.info("Recording started -> %s", filepath)
+        return filepath
+
+    def stop_recording(self) -> None:
+        if self._recording:
+            self._recording = False
+            # Detach CSV logger from acquisition
+            if self._acquisition:
+                self._acquisition._csv_logger = None
+            self.csv_logger.stop()
+            log.info("Recording stopped")
+
+    @property
+    def recording_active(self) -> bool:
+        return self._recording
+
+    # --- Backwards compat ---
+    @property
+    def acquisition_running(self) -> bool:
+        return self.polling_active
+
+    # --- Flow regulation (user) ---
+    def set_flow_setpoint(self, channel_idx: int, setpoint: float) -> None:
+        self.channel_manager.user_set_flow_regulation(channel_idx, setpoint)
+
+    # --- Pressure control (user) ---
+    def set_pressure_setpoint(self, channel_idx: int, pressure_mbar: float) -> None:
+        self.channel_manager.user_set_pressure(channel_idx, pressure_mbar)
+
+    def stop_regulation(self, channel_idx: int) -> None:
+        self.channel_manager.user_stop_regulation(channel_idx)
+
+    # --- Emergency ---
+    def emergency_stop(self) -> None:
+        log.warning("EMERGENCY STOP triggered")
+        self.stop_pipeline()
+        self.channel_manager.emergency_stop_all()
+
+    # --- Pipeline ---
+    def get_pipeline_names(self) -> list[str]:
+        return list(PIPELINES.keys())
+
+    def build_pipeline(self, name: str) -> list[PipelineStep]:
+        defns = PIPELINES.get(name)
+        if defns is None:
+            raise ValueError(f"Unknown pipeline: {name}")
+        steps = []
+        for defn in defns:
+            trigger = create_trigger(defn.trigger_type, defn.trigger_params)
+            steps.append(PipelineStep(
+                name=defn.name,
+                sensor_setpoints=dict(defn.sensor_setpoints),
+                trigger=trigger,
+            ))
+        return steps
+
+    def start_pipeline(self, name: str | None = None, steps: list[PipelineStep] | None = None) -> None:
+        if self._pipeline and self._pipeline.is_alive():
+            log.warning("Pipeline already running")
+            return
+        if steps is None:
+            pipeline_name = name or next(iter(PIPELINES))
+            steps = self.build_pipeline(pipeline_name)
+
+        # Map sensor_index -> channel_manager index
+        sensor_to_channel = {}
+        for ch_idx, ch in enumerate(self.channel_manager.channels):
+            sensor_to_channel[ch.sensor_index] = ch_idx
+
+        self._pipeline = PipelineEngine(
+            steps=steps,
+            channel_manager=self.channel_manager,
+            acquisition=self._acquisition,
+            event_queue=self.pipeline_queue,
+            sensor_to_channel=sensor_to_channel,
+        )
+        self._pipeline.start()
+
+    def stop_pipeline(self) -> None:
+        if self._pipeline and self._pipeline.is_alive():
+            self._pipeline.stop()
+            self._pipeline.join(timeout=3.0)
+        self._pipeline = None
+
+    def pause_pipeline(self) -> None:
+        if self._pipeline:
+            self._pipeline.pause()
+
+    def resume_pipeline(self) -> None:
+        if self._pipeline:
+            self._pipeline.resume()
+
+    def skip_pipeline_step(self) -> None:
+        if self._pipeline:
+            self._pipeline.skip_step()
+
+    def confirm_pipeline_step(self) -> None:
+        """Confirm the current pipeline step if it's a ConfirmationTrigger."""
+        if self._pipeline and self._pipeline.steps:
+            idx = self._pipeline.current_step_index
+            if 0 <= idx < len(self._pipeline.steps):
+                trigger = self._pipeline.steps[idx].trigger
+                if isinstance(trigger, ConfirmationTrigger):
+                    trigger.confirm()
+                    log.info("Confirmed pipeline step %d", idx)
+
+    @property
+    def pipeline_state(self) -> PipelineState:
+        if self._pipeline:
+            return self._pipeline.state
+        return PipelineState.IDLE
+
+    @property
+    def pipeline_steps(self) -> list[PipelineStep] | None:
+        if self._pipeline:
+            return self._pipeline.steps
+        return None
