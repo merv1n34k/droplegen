@@ -13,6 +13,7 @@ STABILITY_WINDOW_SAMPLES = int(STABILITY_DURATION_S / (ACQUISITION_INTERVAL_MS /
 
 # --- Pipeline trigger defaults ---
 PIPELINE_TICK_MS = 200
+PIPELINE_DIR = "pipelines"
 
 # --- Simulated instrument config ---
 # 3 separate LineUP (instr_type=4) instruments, each with 1 Flow EZ module
@@ -21,9 +22,9 @@ PIPELINE_TICK_MS = 200
 # sensor_type: 4=Flow_M_dual, 7=Flow_L_dual
 SIM_INSTR_TYPE = 4  # LineUP
 SIM_INSTRUMENTS = [
-    {"serial": 1001, "config": [1, 100, 0, 5, 4, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit M
-    {"serial": 1002, "config": [1, 101, 0, 5, 4, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit M
-    {"serial": 1003, "config": [1, 102, 0, 5, 7, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit L
+    {"serial": 1001, "config": [1, 100, 0, 5, 7, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit L (Oil)
+    {"serial": 1002, "config": [1, 101, 0, 5, 4, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit M (Cells)
+    {"serial": 1003, "config": [1, 102, 0, 5, 4, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit M (Beads)
 ]
 
 # --- Channel names (Drop-Seq convention) ---
@@ -33,9 +34,9 @@ PRESSURE_CHANNEL_NAMES = [
     "Beads Pressure",
 ]
 SENSOR_CHANNEL_NAMES = [
-    "Oil Flow (M)",
+    "Oil Flow (L)",
     "Cells Flow (M)",
-    "Beads Flow (L)",
+    "Beads Flow (M)",
 ]
 
 # --- Pipeline step definition ---
@@ -43,9 +44,10 @@ SENSOR_CHANNEL_NAMES = [
 class Step:
     name: str
     sensor_setpoints: dict  # {sensor_index: flow_ul_min}
-    trigger_type: str       # "time", "volume", "threshold", "confirmation"
+    trigger_type: str       # "time", "volume", "threshold"
     trigger_params: dict
     on_complete: str = "hold"  # "hold", "zero", "revert"
+    confirm_message: str = ""  # if set, requires confirmation before step runs
 
 
 # --- Named pipelines ---
@@ -83,23 +85,12 @@ PIPELINES: dict[str, list[Step]] = {
     ],
     "Priming": [
         Step(
-            name="Confirm Prime Oil",
-            sensor_setpoints={},
-            trigger_type="confirmation",
-            trigger_params={"message": "Prime Oil Flow (L) at 250 \u00b5l/min for 40 \u00b5l. Proceed?"},
-        ),
-        Step(
             name="Prime Oil",
             sensor_setpoints={0: 250.0},
             trigger_type="volume",
             trigger_params={"sensor_index": 0, "target_volume_ul": 40.0},
             on_complete="zero",
-        ),
-        Step(
-            name="Confirm Prime Cells",
-            sensor_setpoints={},
-            trigger_type="confirmation",
-            trigger_params={"message": "Prime Cells Flow (M) at 67 \u00b5l/min for 5 \u00b5l. Proceed?"},
+            confirm_message="Prime Oil Flow (L) at 250 \u00b5l/min for 40 \u00b5l. Proceed?",
         ),
         Step(
             name="Prime Cells",
@@ -107,12 +98,7 @@ PIPELINES: dict[str, list[Step]] = {
             trigger_type="volume",
             trigger_params={"sensor_index": 1, "target_volume_ul": 5.0},
             on_complete="zero",
-        ),
-        Step(
-            name="Confirm Prime Beads",
-            sensor_setpoints={},
-            trigger_type="confirmation",
-            trigger_params={"message": "Prime Beads Flow (M) at 67 \u00b5l/min for 5 \u00b5l. Proceed?"},
+            confirm_message="Prime Cells Flow (M) at 67 \u00b5l/min for 5 \u00b5l. Proceed?",
         ),
         Step(
             name="Prime Beads",
@@ -120,6 +106,7 @@ PIPELINES: dict[str, list[Step]] = {
             trigger_type="volume",
             trigger_params={"sensor_index": 2, "target_volume_ul": 5.0},
             on_complete="zero",
+            confirm_message="Prime Beads Flow (M) at 67 \u00b5l/min for 5 \u00b5l. Proceed?",
         ),
     ],
 }

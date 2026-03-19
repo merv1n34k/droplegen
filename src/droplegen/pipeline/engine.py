@@ -9,7 +9,6 @@ from queue import Queue
 from droplegen.backend.channel_manager import ChannelManager
 from droplegen.backend.acquisition import AcquisitionThread
 from droplegen.pipeline.steps import PipelineStep, StepStatus
-from droplegen.pipeline.triggers import ConfirmationTrigger
 from droplegen.config import PIPELINE_TICK_MS
 
 log = logging.getLogger(__name__)
@@ -62,6 +61,7 @@ class PipelineEngine(threading.Thread):
         self._pause_event = threading.Event()
         self._pause_event.set()  # not paused initially
         self._skip_event = threading.Event()
+        self._confirm_event = threading.Event()  # for pre-step confirmation
 
     @property
     def state(self) -> PipelineState:
@@ -89,24 +89,20 @@ class PipelineEngine(threading.Thread):
             self._emit_event()
             log.info("Pipeline resumed")
 
+    def confirm_pending(self) -> None:
+        """Confirm pre-step confirmation gate."""
+        self._confirm_event.set()
+
     def stop(self) -> None:
         log.info("Pipeline stop requested")
         self._state = PipelineState.STOPPING
         self._stop_event.set()
         self._pause_event.set()  # unblock if paused
-        # Also unblock any confirmation triggers
-        for step in self._steps:
-            if isinstance(step.trigger, ConfirmationTrigger):
-                step.trigger.confirm()
+        self._confirm_event.set()  # unblock pre-step confirmation
 
     def skip_step(self) -> None:
         self._skip_event.set()
-        # Also unblock confirmation trigger if waiting
-        idx = self._current_step_idx
-        if 0 <= idx < len(self._steps):
-            trigger = self._steps[idx].trigger
-            if isinstance(trigger, ConfirmationTrigger):
-                trigger.confirm()
+        self._confirm_event.set()  # unblock pre-step confirmation
         log.info("Skip requested for step %d", self._current_step_idx)
 
     def run(self) -> None:
@@ -139,18 +135,32 @@ class PipelineEngine(threading.Thread):
     def _execute_step(self, step: PipelineStep) -> None:
         step.status = StepStatus.RUNNING
 
+        # Pre-step confirmation gate
+        if step.confirm_message:
+            self._confirm_event.clear()
+            self._emit_event(confirmation_message=step.confirm_message)
+            log.info("Step '%s' waiting for confirmation", step.name)
+            while not self._stop_event.is_set() and not self._skip_event.is_set():
+                if self._confirm_event.wait(timeout=0.2):
+                    break
+            if self._stop_event.is_set():
+                step.status = StepStatus.SKIPPED
+                self._emit_event()
+                return
+            if self._skip_event.is_set():
+                self._skip_event.clear()
+                step.status = StepStatus.SKIPPED
+                log.info("Step '%s' skipped (confirmation)", step.name)
+                self._emit_event()
+                return
+
         # Record start volumes for this step
         self._step_start_volumes.clear()
         if self._acquisition:
             for sensor_idx in step.sensor_setpoints:
                 self._step_start_volumes[sensor_idx] = self._acquisition.get_volume(sensor_idx)
 
-        # Detect confirmation trigger
-        confirmation_msg = ""
-        if isinstance(step.trigger, ConfirmationTrigger):
-            confirmation_msg = step.trigger.message
-
-        self._emit_event(confirmation_message=confirmation_msg)
+        self._emit_event()
         log.info("Step '%s' starting", step.name)
 
         # Set flow setpoints for this step
@@ -181,7 +191,6 @@ class PipelineEngine(threading.Thread):
             self._emit_event(
                 progress=step.trigger.progress(),
                 step_volumes=step_volumes,
-                confirmation_message=confirmation_msg,
             )
 
             if triggered:

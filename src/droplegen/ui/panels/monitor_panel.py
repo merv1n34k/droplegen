@@ -47,15 +47,17 @@ class MonitorPanel(QWidget):
 
         # Table
         self._table = QGridLayout()
-        self._table.setSpacing(2)
+        self._table.setSpacing(4)
         col_headers = ["Channel", "Value", "Mean", "Std", "Min", "Max", "Volume", "Stable"]
         col_stretches = [3, 2, 2, 2, 2, 2, 2, 1]
-        for col, (h, stretch) in enumerate(zip(col_headers, col_stretches)):
+        col_min_widths = [90, 55, 55, 45, 55, 55, 55, 40]
+        for col, (h, stretch, min_w) in enumerate(zip(col_headers, col_stretches, col_min_widths)):
             lbl = QLabel(h)
             lbl.setFont(QFont("", 11, QFont.Weight.Bold))
             lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
             self._table.addWidget(lbl, 0, col)
             self._table.setColumnStretch(col, stretch)
+            self._table.setColumnMinimumWidth(col, min_w)
         layout.addLayout(self._table)
         layout.addStretch()
 

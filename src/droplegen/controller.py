@@ -1,5 +1,7 @@
 """Mediator between UI, pipeline, and backend."""
+import json
 import logging
+from pathlib import Path
 from queue import Queue
 
 from droplegen.backend.sdk_wrapper import FluigentSDK
@@ -9,8 +11,8 @@ from droplegen.backend.acquisition import AcquisitionThread, DataSnapshot
 from droplegen.logger.csv_logger import CsvLogger
 from droplegen.pipeline.engine import PipelineEngine, PipelineEvent, PipelineState
 from droplegen.pipeline.steps import PipelineStep
-from droplegen.pipeline.triggers import ConfirmationTrigger, create_trigger
-from droplegen.config import PIPELINES
+from droplegen.pipeline.triggers import create_trigger
+from droplegen.config import PIPELINES, PIPELINE_DIR, Step
 
 log = logging.getLogger(__name__)
 
@@ -133,16 +135,7 @@ class Controller:
         defns = PIPELINES.get(name)
         if defns is None:
             raise ValueError(f"Unknown pipeline: {name}")
-        steps = []
-        for defn in defns:
-            trigger = create_trigger(defn.trigger_type, defn.trigger_params)
-            steps.append(PipelineStep(
-                name=defn.name,
-                sensor_setpoints=dict(defn.sensor_setpoints),
-                trigger=trigger,
-                on_complete=defn.on_complete,
-            ))
-        return steps
+        return self.build_pipeline_from_steps(defns)
 
     def start_pipeline(self, name: str | None = None, steps: list[PipelineStep] | None = None) -> None:
         if self._pipeline and self._pipeline.is_alive():
@@ -185,14 +178,10 @@ class Controller:
             self._pipeline.skip_step()
 
     def confirm_pipeline_step(self) -> None:
-        """Confirm the current pipeline step if it's a ConfirmationTrigger."""
-        if self._pipeline and self._pipeline.steps:
-            idx = self._pipeline.current_step_index
-            if 0 <= idx < len(self._pipeline.steps):
-                trigger = self._pipeline.steps[idx].trigger
-                if isinstance(trigger, ConfirmationTrigger):
-                    trigger.confirm()
-                    log.info("Confirmed pipeline step %d", idx)
+        """Confirm the current pipeline step's pre-step confirmation gate."""
+        if self._pipeline:
+            self._pipeline.confirm_pending()
+            log.info("Confirmed pipeline step %d", self._pipeline.current_step_index)
 
     @property
     def pipeline_state(self) -> PipelineState:
@@ -205,3 +194,51 @@ class Controller:
         if self._pipeline:
             return self._pipeline.steps
         return None
+
+    def build_pipeline_from_steps(self, steps: list[Step]) -> list[PipelineStep]:
+        result = []
+        for defn in steps:
+            trigger = create_trigger(defn.trigger_type, defn.trigger_params)
+            result.append(PipelineStep(
+                name=defn.name,
+                sensor_setpoints=dict(defn.sensor_setpoints),
+                trigger=trigger,
+                on_complete=defn.on_complete,
+                confirm_message=defn.confirm_message,
+            ))
+        return result
+
+    # --- Pipeline save/load ---
+    def _pipeline_dir(self) -> Path:
+        d = Path(PIPELINE_DIR)
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    def save_pipeline(self, name: str, steps: list[dict]) -> None:
+        path = self._pipeline_dir() / f"{name}.json"
+        with open(path, "w") as f:
+            json.dump(steps, f, indent=2)
+        log.info("Saved pipeline %r -> %s", name, path)
+
+    def load_saved_pipeline(self, name: str) -> list[Step]:
+        path = self._pipeline_dir() / f"{name}.json"
+        with open(path) as f:
+            data = json.load(f)
+        steps = []
+        for d in data:
+            steps.append(Step(
+                name=d["name"],
+                sensor_setpoints={int(k): v for k, v in d["sensor_setpoints"].items()},
+                trigger_type=d["trigger_type"],
+                trigger_params=d["trigger_params"],
+                on_complete=d.get("on_complete", "hold"),
+                confirm_message=d.get("confirm_message", ""),
+            ))
+        return steps
+
+    def list_saved_pipelines(self) -> list[str]:
+        d = self._pipeline_dir()
+        return sorted(p.stem for p in d.glob("*.json"))
+
+    def get_all_pipeline_names(self) -> tuple[list[str], list[str]]:
+        return list(PIPELINES.keys()), self.list_saved_pipelines()

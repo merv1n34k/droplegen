@@ -103,6 +103,26 @@ QProgressBar::chunk {
     background: #3498db;
     border-radius: 2px;
 }
+QScrollArea {
+    border: none;
+    background: transparent;
+}
+QScrollBar:vertical {
+    background: #1a1a1a;
+    width: 8px;
+    border: none;
+}
+QScrollBar::handle:vertical {
+    background: #444444;
+    border-radius: 4px;
+    min-height: 20px;
+}
+QScrollBar::handle:vertical:hover {
+    background: #555555;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0;
+}
 QSplitter::handle {
     background: #333333;
 }

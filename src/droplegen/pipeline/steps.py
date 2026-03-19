@@ -19,5 +19,6 @@ class PipelineStep:
     sensor_setpoints: dict[int, float]  # {sensor_index: flow_ul_min}
     trigger: Trigger
     on_complete: str = "hold"  # "hold", "zero", "revert"
+    confirm_message: str = ""  # if set, requires confirmation before step runs
     status: StepStatus = StepStatus.PENDING
     error_msg: str = ""
