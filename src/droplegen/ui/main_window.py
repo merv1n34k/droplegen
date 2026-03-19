@@ -64,9 +64,13 @@ class MainWindow(QMainWindow):
         title.setFont(QFont("", 16, QFont.Weight.Bold))
         tb_layout.addWidget(title)
 
-        self._sim_cb = QCheckBox("Sim")
+        tb_layout.addSpacing(12)
+
+        self._sim_cb = QCheckBox("Simulated")
         self._sim_cb.setChecked(True)
         tb_layout.addWidget(self._sim_cb)
+
+        tb_layout.addSpacing(8)
 
         self._connect_btn = QPushButton("Connect")
         self._connect_btn.setFixedHeight(28)
@@ -78,6 +82,8 @@ class MainWindow(QMainWindow):
         self._disconnect_btn.setEnabled(False)
         self._disconnect_btn.clicked.connect(self._on_disconnect)
         tb_layout.addWidget(self._disconnect_btn)
+
+        tb_layout.addSpacing(8)
 
         self._rec_btn = QPushButton("Record")
         self._rec_btn.setFixedHeight(28)
