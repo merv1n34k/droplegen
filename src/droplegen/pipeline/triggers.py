@@ -48,22 +48,23 @@ class VolumeTrigger(Trigger):
         self._sensor_index = sensor_index
         self._target_ul = target_volume_ul
         self._start_volume: float | None = None
+        self._last_dispensed: float = 0.0
 
     def reset(self) -> None:
         self._start_volume = None
+        self._last_dispensed = 0.0
 
     def check(self, get_flow, get_volume) -> bool:
         current = get_volume(self._sensor_index)
         if self._start_volume is None:
             self._start_volume = current
-        dispensed = current - self._start_volume
-        return dispensed >= self._target_ul
+        self._last_dispensed = current - self._start_volume
+        return self._last_dispensed >= self._target_ul
 
     def progress(self) -> float:
-        if self._start_volume is None:
-            return 0.0
-        # Can't compute without current volume; progress updated on check
-        return 0.0  # overridden in engine loop
+        if self._target_ul <= 0:
+            return 1.0
+        return min(1.0, self._last_dispensed / self._target_ul)
 
     def get_dispensed(self, get_volume) -> float:
         if self._start_volume is None:
