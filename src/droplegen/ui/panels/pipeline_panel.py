@@ -226,8 +226,8 @@ class PipelinePanel(QWidget):
             self._confirm_label.hide()
 
     def _on_pipeline_changed(self, name: str) -> None:
-        if not self._ctrl.pipeline_state == PipelineState.IDLE or \
-           self._ctrl.pipeline_state in (PipelineState.COMPLETED, PipelineState.ERROR):
+        state = self._ctrl.pipeline_state
+        if state in (PipelineState.IDLE, PipelineState.COMPLETED, PipelineState.ERROR):
             self._build_step_rows()
 
     def _on_start(self) -> None:
