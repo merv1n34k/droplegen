@@ -187,6 +187,7 @@ class PipelineEngine(threading.Thread):
             if triggered:
                 step.status = StepStatus.COMPLETED
                 log.info("Step '%s' completed (trigger satisfied)", step.name)
+                self._apply_on_complete(step)
                 self._emit_event(step_volumes=step_volumes)
                 return
 
@@ -200,6 +201,20 @@ class PipelineEngine(threading.Thread):
             step.status = StepStatus.SKIPPED
 
         self._emit_event()
+
+    def _apply_on_complete(self, step: PipelineStep) -> None:
+        if step.on_complete == "hold":
+            return
+        for sensor_idx in step.sensor_setpoints:
+            ch_idx = self._sensor_to_channel.get(sensor_idx)
+            if ch_idx is None:
+                continue
+            if step.on_complete == "zero":
+                self._channel_manager.pipeline_set_setpoint(ch_idx, 0.0)
+                log.info("Step on_complete=zero: ch%d -> 0", ch_idx)
+            elif step.on_complete == "revert":
+                self._channel_manager.pipeline_release_channel(ch_idx)
+                log.info("Step on_complete=revert: ch%d -> base", ch_idx)
 
     def _get_flow(self, sensor_index: int) -> float:
         if self._acquisition:

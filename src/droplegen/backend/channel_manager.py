@@ -117,6 +117,27 @@ class ChannelManager:
                 channel_idx, setpoint,
             )
 
+    def pipeline_release_channel(self, channel_idx: int) -> None:
+        with self._lock:
+            ch = self._channels[channel_idx]
+            if ch.owner != "pipeline":
+                return
+            ch.owner = "user"
+            ch.active_setpoint = ch.base_setpoint
+            if ch.base_setpoint > 0 or ch.regulation_active:
+                ch.mode = "flow"
+                self._sdk.set_sensor_regulation(
+                    ch.sensor_index, ch.pressure_index, ch.base_setpoint
+                )
+                log.info(
+                    "Pipeline released ch%d -> base %.2f ul/min",
+                    channel_idx, ch.base_setpoint,
+                )
+            else:
+                ch.regulation_active = False
+                ch.mode = "off"
+                ch.pressure_setpoint = 0.0
+
     def pipeline_release_all(self) -> None:
         with self._lock:
             for i, ch in enumerate(self._channels):

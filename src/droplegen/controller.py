@@ -140,6 +140,7 @@ class Controller:
                 name=defn.name,
                 sensor_setpoints=dict(defn.sensor_setpoints),
                 trigger=trigger,
+                on_complete=defn.on_complete,
             ))
         return steps
 

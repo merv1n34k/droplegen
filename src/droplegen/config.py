@@ -45,6 +45,7 @@ class Step:
     sensor_setpoints: dict  # {sensor_index: flow_ul_min}
     trigger_type: str       # "time", "volume", "threshold", "confirmation"
     trigger_params: dict
+    on_complete: str = "hold"  # "hold", "zero", "revert"
 
 
 # --- Named pipelines ---
@@ -92,6 +93,7 @@ PIPELINES: dict[str, list[Step]] = {
             sensor_setpoints={0: 250.0},
             trigger_type="volume",
             trigger_params={"sensor_index": 0, "target_volume_ul": 40.0},
+            on_complete="zero",
         ),
         Step(
             name="Confirm Prime Cells",
@@ -104,6 +106,7 @@ PIPELINES: dict[str, list[Step]] = {
             sensor_setpoints={1: 67.0},
             trigger_type="volume",
             trigger_params={"sensor_index": 1, "target_volume_ul": 5.0},
+            on_complete="zero",
         ),
         Step(
             name="Confirm Prime Beads",
@@ -116,6 +119,7 @@ PIPELINES: dict[str, list[Step]] = {
             sensor_setpoints={2: 67.0},
             trigger_type="volume",
             trigger_params={"sensor_index": 2, "target_volume_ul": 5.0},
+            on_complete="zero",
         ),
     ],
 }
