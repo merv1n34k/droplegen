@@ -4,5 +4,10 @@ __pycache__/
 dist/
 build/
 logs/
+pipelines/
 .claude/
+.venv/
+.ruff_cache/
+.pytest_cache/
+.env
 uv.lock
