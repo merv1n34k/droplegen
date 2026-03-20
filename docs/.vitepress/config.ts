@@ -3,6 +3,7 @@ import { defineConfig } from 'vitepress'
 export default defineConfig({
   title: 'Droplegen',
   description: 'Fluigent Drop-Seq Microfluidics Control',
+  base: '/droplegen/',
   themeConfig: {
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
