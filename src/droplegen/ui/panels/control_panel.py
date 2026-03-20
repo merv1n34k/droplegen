@@ -2,6 +2,7 @@
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
+    QComboBox,
     QGroupBox,
     QHBoxLayout,
     QLabel,
@@ -12,19 +13,43 @@ from PyQt6.QtWidgets import (
 )
 
 from droplegen.controller import Controller
-from droplegen.config import SENSOR_CHANNEL_NAMES
+from droplegen.config import SENSOR_CHANNEL_NAMES, SENSOR_CALIBRATIONS
+
+
+class ScrollableLineEdit(QLineEdit):
+    """QLineEdit with scroll wheel support for numeric values."""
+
+    def __init__(self, step: float = 1.0, min_val: float = 0.0):
+        super().__init__()
+        self._step = step
+        self._min_val = min_val
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        try:
+            val = float(self.text() or "0")
+        except ValueError:
+            val = 0.0
+        val += self._step if delta > 0 else -self._step
+        val = max(self._min_val, val)
+        self.setText(f"{val:g}")
+        event.accept()
 
 
 class ChannelWidget(QWidget):
-    """Grouped channel control: flow value+set, pressure value+set, mode label, stop."""
+    """Grouped channel control: flow value+set, pressure value+set, calibration, mode, stop."""
 
     def __init__(self, name: str, ch_idx: int,
-                 set_flow_cb=None, set_pressure_cb=None, stop_cb=None):
+                 set_flow_cb=None, set_pressure_cb=None, stop_cb=None,
+                 set_calibration_cb=None, set_custom_scale_cb=None,
+                 flow_step: float = 1.0):
         super().__init__()
         self._ch_idx = ch_idx
         self._set_flow_cb = set_flow_cb
         self._set_pressure_cb = set_pressure_cb
         self._stop_cb = stop_cb
+        self._set_calibration_cb = set_calibration_cb
+        self._set_custom_scale_cb = set_custom_scale_cb
 
         group = QGroupBox(name)
         group.setStyleSheet(
@@ -72,7 +97,7 @@ class ChannelWidget(QWidget):
         unit.setStyleSheet("color: gray; font-size: 10px;")
         flow_row.addWidget(unit)
         flow_row.addStretch()
-        self._flow_entry = QLineEdit()
+        self._flow_entry = ScrollableLineEdit(step=flow_step)
         self._flow_entry.setPlaceholderText("0.0")
         self._flow_entry.setFixedWidth(60)
         self._flow_entry.returnPressed.connect(self._on_set_flow)
@@ -99,7 +124,7 @@ class ChannelWidget(QWidget):
         unit2.setStyleSheet("color: gray; font-size: 10px;")
         press_row.addWidget(unit2)
         press_row.addStretch()
-        self._press_entry = QLineEdit()
+        self._press_entry = ScrollableLineEdit(step=10.0)
         self._press_entry.setPlaceholderText("0.0")
         self._press_entry.setFixedWidth(60)
         self._press_entry.returnPressed.connect(self._on_set_pressure)
@@ -109,6 +134,33 @@ class ChannelWidget(QWidget):
         press_set.clicked.connect(self._on_set_pressure)
         press_row.addWidget(press_set)
         layout.addLayout(press_row)
+
+        # Calibration row: Fluid [combo] a:[__] b:[__] c:[__] [Apply]
+        cal_row = QHBoxLayout()
+        cal_row.setSpacing(4)
+        cal_lbl = QLabel("Fluid:")
+        cal_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        cal_row.addWidget(cal_lbl)
+        self._fluid_combo = QComboBox()
+        self._fluid_combo.addItems(list(SENSOR_CALIBRATIONS.keys()))
+        self._fluid_combo.setFixedHeight(22)
+        self._fluid_combo.setFixedWidth(70)
+        self._fluid_combo.currentTextChanged.connect(self._on_fluid_changed)
+        cal_row.addWidget(self._fluid_combo)
+        for coeff in ("a", "b", "c"):
+            lbl = QLabel(f"{coeff}:")
+            lbl.setStyleSheet("font-size: 10px; color: gray;")
+            cal_row.addWidget(lbl)
+            inp = QLineEdit()
+            inp.setFixedSize(40, 22)
+            inp.setPlaceholderText("1" if coeff == "a" else "0")
+            cal_row.addWidget(inp)
+            setattr(self, f"_scale_{coeff}", inp)
+        apply_btn = QPushButton("Apply")
+        apply_btn.setFixedHeight(22)
+        apply_btn.clicked.connect(self._on_apply_custom_scale)
+        cal_row.addWidget(apply_btn)
+        layout.addLayout(cal_row)
 
     def update_values(self, flow: float, pressure: float) -> None:
         self._flow_value.setText(f"{flow:.2f}")
@@ -145,6 +197,43 @@ class ChannelWidget(QWidget):
         if self._stop_cb:
             self._stop_cb(self._ch_idx)
 
+    def _on_fluid_changed(self, fluid_name: str) -> None:
+        if self._set_calibration_cb:
+            cal_value = SENSOR_CALIBRATIONS.get(fluid_name, 0)
+            self._set_calibration_cb(self._ch_idx, cal_value)
+
+    def get_settings(self) -> dict:
+        return {
+            "flow": self._flow_entry.text(),
+            "pressure": self._press_entry.text(),
+            "fluid": self._fluid_combo.currentText(),
+            "scale_a": self._scale_a.text(),
+            "scale_b": self._scale_b.text(),
+            "scale_c": self._scale_c.text(),
+        }
+
+    def apply_settings(self, d: dict) -> None:
+        self._flow_entry.setText(d.get("flow", ""))
+        self._press_entry.setText(d.get("pressure", ""))
+        fluid = d.get("fluid", "")
+        idx = self._fluid_combo.findText(fluid)
+        if idx >= 0:
+            self._fluid_combo.setCurrentIndex(idx)
+        self._scale_a.setText(d.get("scale_a", ""))
+        self._scale_b.setText(d.get("scale_b", ""))
+        self._scale_c.setText(d.get("scale_c", ""))
+
+    def _on_apply_custom_scale(self) -> None:
+        if not self._set_custom_scale_cb:
+            return
+        try:
+            a = float(self._scale_a.text() or "1")
+            b = float(self._scale_b.text() or "0")
+            c = float(self._scale_c.text() or "0")
+        except ValueError:
+            return
+        self._set_custom_scale_cb(self._ch_idx, a, b, c)
+
 
 class ControlPanel(QWidget):
     def __init__(self, controller: Controller):
@@ -177,11 +266,15 @@ class ControlPanel(QWidget):
         n_pairs = min(pressure_count, sensor_count)
         for i in range(n_pairs):
             name = SENSOR_CHANNEL_NAMES[i] if i < len(SENSOR_CHANNEL_NAMES) else f"Ch {i}"
+            flow_step = 1.0 if "(L)" in name else 0.5
             widget = ChannelWidget(
                 name=name, ch_idx=i,
                 set_flow_cb=self._on_set_flow,
                 set_pressure_cb=self._on_set_pressure,
                 stop_cb=self._on_stop,
+                set_calibration_cb=self._on_set_calibration,
+                set_custom_scale_cb=self._on_set_custom_scale,
+                flow_step=flow_step,
             )
             # Insert before the stretch
             self._layout.insertWidget(self._layout.count() - 1, widget)
@@ -205,6 +298,24 @@ class ControlPanel(QWidget):
 
     def _on_stop(self, ch_idx: int) -> None:
         self._ctrl.stop_regulation(ch_idx)
+
+    def _on_set_calibration(self, ch_idx: int, cal_value: int) -> None:
+        if self._ctrl.hw_manager.connected:
+            sensor_idx = self._ctrl.channel_manager.channels[ch_idx].sensor_index
+            self._ctrl.set_sensor_calibration(sensor_idx, cal_value)
+
+    def _on_set_custom_scale(self, ch_idx: int, a: float, b: float, c: float) -> None:
+        if self._ctrl.hw_manager.connected:
+            sensor_idx = self._ctrl.channel_manager.channels[ch_idx].sensor_index
+            self._ctrl.set_sensor_custom_scale(sensor_idx, a, b, c)
+
+    def get_settings(self) -> list[dict]:
+        return [w.get_settings() for w in self._channel_widgets]
+
+    def apply_settings(self, channels: list[dict]) -> None:
+        for i, d in enumerate(channels):
+            if i < len(self._channel_widgets):
+                self._channel_widgets[i].apply_settings(d)
 
     def clear_channels(self) -> None:
         for w in self._channel_widgets:

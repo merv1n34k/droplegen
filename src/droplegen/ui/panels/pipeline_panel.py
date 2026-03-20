@@ -20,7 +20,7 @@ from droplegen.pipeline.engine import PipelineState, PipelineEvent
 from droplegen.pipeline.steps import StepStatus
 
 
-TRIGGER_TYPES = ["time", "volume", "threshold"]
+TRIGGER_TYPES = ["time", "volume", "threshold", "condition"]
 ON_COMPLETE_OPTIONS = ["hold", "zero", "revert"]
 
 
@@ -62,6 +62,26 @@ class StepBlock(QWidget):
         header.addWidget(self._name_input)
 
         header.addStretch()
+
+        repeat_lbl = QLabel("Rep:")
+        repeat_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        header.addWidget(repeat_lbl)
+        self._repeat_input = QLineEdit()
+        self._repeat_input.setFixedSize(28, 24)
+        self._repeat_input.setPlaceholderText("1")
+        if step and step.repeat > 1:
+            self._repeat_input.setText(str(step.repeat))
+        header.addWidget(self._repeat_input)
+
+        group_lbl = QLabel("Grp:")
+        group_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        header.addWidget(group_lbl)
+        self._group_input = QLineEdit()
+        self._group_input.setFixedSize(28, 24)
+        self._group_input.setPlaceholderText("")
+        if step and step.group:
+            self._group_input.setText(step.group)
+        header.addWidget(self._group_input)
 
         after_lbl = QLabel("After:")
         after_lbl.setStyleSheet("font-size: 11px; color: gray;")
@@ -259,6 +279,36 @@ class StepBlock(QWidget):
             lbl5.setStyleSheet("font-size: 10px; color: gray;")
             self._params_layout.addWidget(lbl5)
 
+        elif trigger_type == "condition":
+            lbl = QLabel("Sensor:")
+            lbl.setStyleSheet("font-size: 11px;")
+            self._params_layout.addWidget(lbl)
+            self._cond_sensor_input = QLineEdit()
+            self._cond_sensor_input.setFixedSize(40, 22)
+            self._cond_sensor_input.setText(str(params.get("sensor_index", 0)))
+            self._params_layout.addWidget(self._cond_sensor_input)
+            lbl2 = QLabel(">=")
+            lbl2.setStyleSheet("font-size: 11px;")
+            self._params_layout.addWidget(lbl2)
+            self._cond_min_input = QLineEdit()
+            self._cond_min_input.setFixedSize(60, 22)
+            self._cond_min_input.setPlaceholderText("min")
+            if params.get("min_value") is not None:
+                self._cond_min_input.setText(f"{params['min_value']:g}")
+            self._params_layout.addWidget(self._cond_min_input)
+            lbl3 = QLabel("<=")
+            lbl3.setStyleSheet("font-size: 11px;")
+            self._params_layout.addWidget(lbl3)
+            self._cond_max_input = QLineEdit()
+            self._cond_max_input.setFixedSize(60, 22)
+            self._cond_max_input.setPlaceholderText("max")
+            if params.get("max_value") is not None:
+                self._cond_max_input.setText(f"{params['max_value']:g}")
+            self._params_layout.addWidget(self._cond_max_input)
+            unit = QLabel("µl/min")
+            unit.setStyleSheet("font-size: 10px; color: gray;")
+            self._params_layout.addWidget(unit)
+
         self._params_layout.addStretch()
 
     def _on_trigger_type_changed(self, _text: str) -> None:
@@ -279,9 +329,7 @@ class StepBlock(QWidget):
             text = inp.text().strip()
             if text:
                 try:
-                    val = float(text)
-                    if val != 0:
-                        setpoints[ch_idx] = val
+                    setpoints[ch_idx] = float(text)
                 except ValueError:
                     pass
 
@@ -322,8 +370,31 @@ class StepBlock(QWidget):
             except (ValueError, AttributeError):
                 trigger_params["stable_duration_s"] = 10.0
 
+        elif trigger_type == "condition":
+            try:
+                trigger_params["sensor_index"] = int(self._cond_sensor_input.text())
+            except (ValueError, AttributeError):
+                trigger_params["sensor_index"] = 0
+            min_text = self._cond_min_input.text().strip()
+            if min_text:
+                try:
+                    trigger_params["min_value"] = float(min_text)
+                except ValueError:
+                    pass
+            max_text = self._cond_max_input.text().strip()
+            if max_text:
+                try:
+                    trigger_params["max_value"] = float(max_text)
+                except ValueError:
+                    pass
+
         on_complete = self._on_complete_combo.currentText()
         confirm_message = self._confirm_msg_input.text().strip()
+        try:
+            repeat = max(1, int(self._repeat_input.text()))
+        except (ValueError, AttributeError):
+            repeat = 1
+        group = self._group_input.text().strip()
         return Step(
             name=name,
             sensor_setpoints=setpoints,
@@ -331,6 +402,8 @@ class StepBlock(QWidget):
             trigger_params=trigger_params,
             on_complete=on_complete,
             confirm_message=confirm_message,
+            repeat=repeat,
+            group=group,
         )
 
     def set_status(self, status: StepStatus, progress: float = 0.0) -> None:
@@ -352,6 +425,8 @@ class StepBlock(QWidget):
         self._trigger_combo.setEnabled(enabled)
         self._remove_btn.setEnabled(enabled)
         self._confirm_msg_input.setEnabled(enabled)
+        self._repeat_input.setEnabled(enabled)
+        self._group_input.setEnabled(enabled)
         for inp in self._flow_inputs:
             inp.setEnabled(enabled)
         # Enable/disable all QLineEdit in params container
@@ -364,6 +439,7 @@ class PipelinePanel(QWidget):
         super().__init__()
         self._ctrl = controller
         self._step_blocks: list[StepBlock] = []
+        self._active_confirm_msg = ""
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(6, 4, 6, 4)
@@ -564,6 +640,10 @@ class PipelinePanel(QWidget):
             }
             if s.confirm_message:
                 d["confirm_message"] = s.confirm_message
+            if s.repeat > 1:
+                d["repeat"] = s.repeat
+            if s.group:
+                d["group"] = s.group
             steps_data.append(d)
         self._ctrl.save_pipeline(name, steps_data)
         self._refresh_combo()
@@ -602,11 +682,16 @@ class PipelinePanel(QWidget):
         for block in self._step_blocks:
             block.set_editing(not running)
 
-        # Confirmation UI
-        if event.confirmation_message and event.state == PipelineState.RUNNING:
-            self._confirm_label.setText(event.confirmation_message)
+        # Confirmation UI — track active message across pause/resume
+        if event.confirmation_message:
+            self._active_confirm_msg = event.confirmation_message
+        elif event.state not in (PipelineState.PAUSED,):
+            self._active_confirm_msg = ""
+
+        if self._active_confirm_msg and event.state in (PipelineState.RUNNING, PipelineState.PAUSED):
+            self._confirm_label.setText(self._active_confirm_msg)
             self._confirm_label.show()
-            self._proceed_btn.setEnabled(True)
+            self._proceed_btn.setEnabled(event.state == PipelineState.RUNNING)
         else:
             self._confirm_label.hide()
             self._proceed_btn.setEnabled(False)

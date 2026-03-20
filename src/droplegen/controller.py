@@ -121,6 +121,17 @@ class Controller:
     def stop_regulation(self, channel_idx: int) -> None:
         self.channel_manager.user_stop_regulation(channel_idx)
 
+    # --- Sensor calibration ---
+    def set_sensor_calibration(self, sensor_index: int, calibration: int) -> None:
+        self.sdk.set_sensor_calibration(sensor_index, calibration)
+        log.info("Sensor %d calibration set to %d", sensor_index, calibration)
+
+    def set_sensor_custom_scale(
+        self, sensor_index: int, a: float, b: float = 0.0, c: float = 0.0
+    ) -> None:
+        self.sdk.set_sensor_custom_scale(sensor_index, a, b, c)
+        log.info("Sensor %d custom scale: a=%.4f b=%.4f c=%.4f", sensor_index, a, b, c)
+
     # --- Emergency ---
     def emergency_stop(self) -> None:
         log.warning("EMERGENCY STOP triggered")
@@ -195,9 +206,32 @@ class Controller:
             return self._pipeline.steps
         return None
 
+    def _expand_steps(self, steps: list[Step]) -> list[Step]:
+        """Expand repeat/group into a flat list of steps."""
+        expanded = []
+        i = 0
+        while i < len(steps):
+            s = steps[i]
+            if s.group:
+                # Collect consecutive steps with the same group tag
+                group_steps = []
+                group_repeat = 1
+                while i < len(steps) and steps[i].group == s.group:
+                    group_steps.append(steps[i])
+                    group_repeat = max(group_repeat, steps[i].repeat)
+                    i += 1
+                for _ in range(group_repeat):
+                    expanded.extend(group_steps)
+            else:
+                for _ in range(max(1, s.repeat)):
+                    expanded.append(s)
+                i += 1
+        return expanded
+
     def build_pipeline_from_steps(self, steps: list[Step]) -> list[PipelineStep]:
+        expanded = self._expand_steps(steps)
         result = []
-        for defn in steps:
+        for defn in expanded:
             trigger = create_trigger(defn.trigger_type, defn.trigger_params)
             result.append(PipelineStep(
                 name=defn.name,
@@ -207,6 +241,24 @@ class Controller:
                 confirm_message=defn.confirm_message,
             ))
         return result
+
+    # --- Settings save/load ---
+    SETTINGS_FILE = Path("settings.json")
+
+    def save_settings(self, data: list[dict]) -> None:
+        with open(self.SETTINGS_FILE, "w") as f:
+            json.dump({"channels": data}, f, indent=2)
+        log.info("Settings saved -> %s", self.SETTINGS_FILE)
+
+    def load_settings(self) -> list[dict] | None:
+        if not self.SETTINGS_FILE.exists():
+            return None
+        try:
+            with open(self.SETTINGS_FILE) as f:
+                return json.load(f).get("channels")
+        except (json.JSONDecodeError, KeyError):
+            log.warning("Failed to load settings from %s", self.SETTINGS_FILE)
+            return None
 
     # --- Pipeline save/load ---
     def _pipeline_dir(self) -> Path:
@@ -233,6 +285,8 @@ class Controller:
                 trigger_params=d["trigger_params"],
                 on_complete=d.get("on_complete", "hold"),
                 confirm_message=d.get("confirm_message", ""),
+                repeat=d.get("repeat", 1),
+                group=d.get("group", ""),
             ))
         return steps
 

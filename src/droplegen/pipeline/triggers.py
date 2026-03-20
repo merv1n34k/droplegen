@@ -120,6 +120,41 @@ class ThresholdTrigger(Trigger):
         )
 
 
+class ConditionTrigger(Trigger):
+    """Fires once a sensor reading is within [min_value, max_value] range."""
+
+    def __init__(self, sensor_index: int, min_value: float | None = None, max_value: float | None = None):
+        self._sensor_index = sensor_index
+        self._min_value = min_value
+        self._max_value = max_value
+        self._triggered = False
+
+    def reset(self) -> None:
+        self._triggered = False
+
+    def check(self, get_flow, get_volume) -> bool:
+        flow = get_flow(self._sensor_index)
+        ok = True
+        if self._min_value is not None:
+            ok = ok and flow >= self._min_value
+        if self._max_value is not None:
+            ok = ok and flow <= self._max_value
+        if ok:
+            self._triggered = True
+        return self._triggered
+
+    def progress(self) -> float:
+        return 1.0 if self._triggered else 0.0
+
+    def description(self) -> str:
+        parts = []
+        if self._min_value is not None:
+            parts.append(f">= {self._min_value:.1f}")
+        if self._max_value is not None:
+            parts.append(f"<= {self._max_value:.1f}")
+        return f"Condition: sensor {self._sensor_index} {' & '.join(parts)}"
+
+
 class ConfirmationTrigger(Trigger):
     """Blocks until confirm() is called (from UI thread)."""
 
@@ -154,6 +189,8 @@ def create_trigger(trigger_type: str, params: dict) -> Trigger:
         return VolumeTrigger(**params)
     elif trigger_type == "threshold":
         return ThresholdTrigger(**params)
+    elif trigger_type == "condition":
+        return ConditionTrigger(**params)
     elif trigger_type == "confirmation":
         return ConfirmationTrigger(**params)
     else:

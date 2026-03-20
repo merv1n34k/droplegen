@@ -28,8 +28,12 @@ from Fluigent.SDK import (
     fgt_get_pressureRange,
     fgt_get_sensorRange,
     fgt_calibratePressure,
+    fgt_set_sensorCalibration,
+    fgt_get_sensorCalibration,
+    fgt_set_sensorCustomScale,
     fgt_INSTRUMENT_TYPE,
     fgt_SENSOR_TYPE,
+    fgt_SENSOR_CALIBRATION,
 )
 
 
@@ -151,3 +155,15 @@ class FluigentSDK:
 
     def calibrate_pressure(self, pressure_index: int) -> None:
         fgt_calibratePressure(pressure_index)
+
+    def set_sensor_calibration(self, sensor_index: int, calibration: int) -> None:
+        fgt_set_sensorCalibration(sensor_index, fgt_SENSOR_CALIBRATION(calibration))
+
+    def get_sensor_calibration(self, sensor_index: int) -> int:
+        return int(fgt_get_sensorCalibration(sensor_index))
+
+    def set_sensor_custom_scale(
+        self, sensor_index: int, a: float, b: float = 0.0, c: float = 0.0,
+        smax: float | None = None,
+    ) -> None:
+        fgt_set_sensorCustomScale(sensor_index, a, b, c, smax=smax)

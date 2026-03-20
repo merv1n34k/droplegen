@@ -1,5 +1,5 @@
 """Constants, simulated instrument config, and pipeline definitions."""
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 # --- Timing ---
 ACQUISITION_INTERVAL_MS = 100
@@ -27,6 +27,13 @@ SIM_INSTRUMENTS = [
     {"serial": 1003, "config": [1, 102, 0, 5, 4, 0, 0, 0, 0, 0]},  # Flow EZ + Flow Unit M (Beads)
 ]
 
+# --- Real sensor ranges (µl/min) for simulated mode override ---
+# Keyed by fgt_SENSOR_TYPE enum name substring
+SENSOR_REAL_SMAX = {
+    "Flow_L": 5000.0,
+    "Flow_M": 80.0,
+}
+
 # --- Channel names (Drop-Seq convention) ---
 PRESSURE_CHANNEL_NAMES = [
     "Oil Pressure",
@@ -39,48 +46,57 @@ SENSOR_CHANNEL_NAMES = [
     "Beads Flow (M)",
 ]
 
+# --- Sensor calibration ---
+# Built-in calibration tables (fgt_SENSOR_CALIBRATION enum values)
+SENSOR_CALIBRATIONS = {
+    "None": 0,
+    "H2O": 1,
+    "IPA": 2,
+    "HFE": 3,
+    "FC40": 4,
+    "Oil": 5,
+}
+
 # --- Pipeline step definition ---
 @dataclass
 class Step:
     name: str
     sensor_setpoints: dict  # {sensor_index: flow_ul_min}
-    trigger_type: str       # "time", "volume", "threshold"
+    trigger_type: str       # "time", "volume", "threshold", "condition"
     trigger_params: dict
     on_complete: str = "hold"  # "hold", "zero", "revert"
     confirm_message: str = ""  # if set, requires confirmation before step runs
+    repeat: int = 1           # repeat this step (or group) N times
+    group: str = ""           # group tag — steps with same tag repeat as a unit
 
 
 # --- Named pipelines ---
 PIPELINES: dict[str, list[Step]] = {
     "Drop-Seq": [
         Step(
-            name="Prime",
-            sensor_setpoints={0: 100.0, 1: 50.0, 2: 50.0},
-            trigger_type="time",
-            trigger_params={"duration_s": 60.0},
-        ),
-        Step(
-            name="Stabilize",
-            sensor_setpoints={0: 30.0, 1: 10.0, 2: 10.0},
-            trigger_type="threshold",
-            trigger_params={
-                "sensor_index": 0,
-                "target": 30.0,
-                "tolerance_pct": 5.0,
-                "stable_duration_s": 10.0,
-            },
-        ),
-        Step(
-            name="Collect",
-            sensor_setpoints={0: 30.0, 1: 10.0, 2: 10.0},
+            name="Prerun",
+            sensor_setpoints={0: 250.0, 1: 67.0, 2: 67.0},
             trigger_type="volume",
-            trigger_params={"sensor_index": 1, "target_volume_ul": 500.0},
+            trigger_params={"sensor_index": 0, "target_volume_ul": 75.0},
+            on_complete="zero",
         ),
         Step(
-            name="Flush",
-            sensor_setpoints={0: 200.0, 1: 100.0, 2: 100.0},
-            trigger_type="time",
-            trigger_params={"duration_s": 30.0},
+            name="Run-prestab",
+            sensor_setpoints={0: 250.0, 1: 0.0, 2: 0.0},
+            trigger_type="condition",
+            trigger_params={"sensor_index": 0, "min_value": 125.0},
+            confirm_message="Prerun complete. Start stabilization?",
+            group="run",
+            repeat=3,
+        ),
+        Step(
+            name="Run-stab",
+            sensor_setpoints={0: 250.0, 1: 67.0, 2: 67.0},
+            trigger_type="volume",
+            trigger_params={"sensor_index": 0, "target_volume_ul": 250.0},
+            on_complete="zero",
+            group="run",
+            repeat=3,
         ),
     ],
     "Priming": [

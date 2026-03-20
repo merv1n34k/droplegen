@@ -91,6 +91,12 @@ class MainWindow(QMainWindow):
         self._rec_btn.clicked.connect(self._toggle_recording)
         tb_layout.addWidget(self._rec_btn)
 
+        self._save_settings_btn = QPushButton("Save Settings")
+        self._save_settings_btn.setFixedHeight(28)
+        self._save_settings_btn.setEnabled(False)
+        self._save_settings_btn.clicked.connect(self._on_save_settings)
+        tb_layout.addWidget(self._save_settings_btn)
+
         tb_layout.addStretch()
 
         self._estop_btn = QPushButton("E-STOP")
@@ -163,6 +169,12 @@ class MainWindow(QMainWindow):
             n_s = len(state.sensor_channels)
             self.control_panel.setup_channels(n_p, n_s)
             self.monitor_panel.setup_channels(n_p, n_s)
+            self._save_settings_btn.setEnabled(True)
+
+            # Auto-load saved settings
+            settings = self._ctrl.load_settings()
+            if settings:
+                self.control_panel.apply_settings(settings)
 
             mode = "simulated" if state.simulated else "hardware"
             self._status_bar.setStyleSheet("color: #27ae60;")
@@ -180,6 +192,7 @@ class MainWindow(QMainWindow):
             self._disconnect_btn.setEnabled(False)
             self._rec_btn.setEnabled(False)
             self._rec_btn.setText("Record")
+            self._save_settings_btn.setEnabled(False)
             self.control_panel.clear_channels()
             self.plot_panel.clear()
             self._status_bar.setStyleSheet("color: #888888;")
@@ -195,6 +208,11 @@ class MainWindow(QMainWindow):
         else:
             self._ctrl.start_recording()
             self._rec_btn.setText("Stop Rec")
+
+    def _on_save_settings(self) -> None:
+        data = self.control_panel.get_settings()
+        self._ctrl.save_settings(data)
+        self._status_bar.showMessage("Settings saved", 3000)
 
     def _on_emergency_stop(self) -> None:
         self._ctrl.emergency_stop()

@@ -3,7 +3,7 @@ import logging
 from dataclasses import dataclass, field
 
 from droplegen.backend.sdk_wrapper import FluigentSDK, PressureChannelInfo, SensorChannelInfo
-from droplegen.config import SIM_INSTR_TYPE, SIM_INSTRUMENTS
+from droplegen.config import SIM_INSTR_TYPE, SIM_INSTRUMENTS, SENSOR_REAL_SMAX
 
 log = logging.getLogger(__name__)
 
@@ -48,6 +48,8 @@ class HardwareManager:
         self._sdk.init()
 
         self._detect_channels()
+        if simulated:
+            self._apply_real_sensor_ranges()
         self.state.connected = True
         log.info(
             "Connected: %d pressure channels, %d sensor channels",
@@ -83,6 +85,21 @@ class HardwareManager:
     def calibrate_all(self) -> None:
         for ch in self.state.pressure_channels:
             self.calibrate(ch.index)
+
+    def _apply_real_sensor_ranges(self) -> None:
+        for ch in self.state.sensor_channels:
+            if ch.smax <= 0:
+                continue
+            for key, real_smax in SENSOR_REAL_SMAX.items():
+                if key in ch.sensor_type:
+                    scale = real_smax / ch.smax
+                    self._sdk.set_sensor_custom_scale(ch.index, scale, 0.0, 0.0, smax=real_smax)
+                    log.info(
+                        "Sensor %d (%s): scale=%.4f (sim_max=%.1f -> real_max=%.0f)",
+                        ch.index, ch.sensor_type, scale, ch.smax, real_smax,
+                    )
+                    ch.smax = real_smax
+                    break
 
     def _detect_channels(self) -> None:
         self.state.controllers = self._sdk.get_controllers_info()
