@@ -79,8 +79,9 @@ class PipelineEngine(threading.Thread):
         if self._state == PipelineState.RUNNING:
             self._pause_event.clear()
             self._state = PipelineState.PAUSED
+            self._channel_manager.pipeline_zero_all()
             self._emit_event()
-            log.info("Pipeline paused")
+            log.info("Pipeline paused (zeroed)")
 
     def resume(self) -> None:
         if self._state == PipelineState.PAUSED:
