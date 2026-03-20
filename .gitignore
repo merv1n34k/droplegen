@@ -10,3 +10,6 @@ pipelines/
 .ruff_cache/
 .pytest_cache/
 .env
+docs/node_modules/
+docs/.vitepress/dist/
+docs/.vitepress/cache/

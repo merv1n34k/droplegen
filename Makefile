@@ -1,4 +1,4 @@
-.PHONY: setup dev build test test-all lint fmt clean
+.PHONY: setup dev build test test-all lint fmt clean docs-dev docs-build
 
 setup:
 	uv sync
@@ -23,3 +23,9 @@ fmt:
 
 clean:
 	rm -rf dist/ .pytest_cache/ __pycache__/ .ruff_cache/ *.egg-info/
+
+docs-dev:
+	cd docs && bun run docs:dev
+
+docs-build:
+	cd docs && bun run docs:build
