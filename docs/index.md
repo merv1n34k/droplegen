@@ -23,3 +23,5 @@ features:
   - title: Simulated Mode
     details: Full development and testing without hardware using Fluigent SDK simulated instruments.
 ---
+
+![Droplegen preview](./preview.png)
