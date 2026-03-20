@@ -1,6 +1,7 @@
 .PHONY: setup dev build test test-all lint fmt clean docs-dev docs-build
 
 setup:
+	@test -d fgt-SDK || git clone https://github.com/Fluigent/fgt-SDK.git fgt-SDK
 	uv sync
 
 dev:
