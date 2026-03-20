@@ -1,6 +1,5 @@
 """Auto-named CSV writer for acquisition data."""
 import csv
-import os
 from datetime import datetime
 from pathlib import Path
 

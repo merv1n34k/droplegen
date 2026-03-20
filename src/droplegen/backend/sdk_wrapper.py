@@ -11,7 +11,7 @@ _SDK_PYTHON_PATH = os.path.normpath(_SDK_PYTHON_PATH)
 if _SDK_PYTHON_PATH not in sys.path:
     sys.path.insert(0, _SDK_PYTHON_PATH)
 
-from Fluigent.SDK import (
+from Fluigent.SDK import (  # noqa: E402
     fgt_init,
     fgt_close,
     fgt_create_simulated_instr,
@@ -31,8 +31,6 @@ from Fluigent.SDK import (
     fgt_set_sensorCalibration,
     fgt_get_sensorCalibration,
     fgt_set_sensorCustomScale,
-    fgt_INSTRUMENT_TYPE,
-    fgt_SENSOR_TYPE,
     fgt_SENSOR_CALIBRATION,
 )
 

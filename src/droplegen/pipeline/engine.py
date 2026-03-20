@@ -1,7 +1,6 @@
 """Pipeline executor thread with pause/resume/stop/skip support."""
 import logging
 import threading
-import time
 from dataclasses import dataclass, field
 from enum import Enum
 from queue import Queue

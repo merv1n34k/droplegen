@@ -21,7 +21,11 @@ build-backend = "setuptools.build_meta"
 [dependency-groups]
 dev = [
     "pytest>=9.0.2",
+    "ruff>=0.15.7",
 ]
+
+[tool.ruff]
+exclude = ["fgt-SDK", "aria-sdk"]
 
 [tool.uv]
 python-preference = "only-managed"
