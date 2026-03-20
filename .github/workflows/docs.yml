@@ -1,10 +1,8 @@
-name: Deploy Docs
+name: Deploy docs
 
 on:
   push:
-    branches: [main]
-    paths:
-      - 'docs/**'
+    branches: [master]
   workflow_dispatch:
 
 permissions:
@@ -21,26 +19,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: oven-sh/setup-bun@v2
-
-      - name: Install dependencies
-        run: cd docs && bun install --frozen-lockfile
-
-      - name: Build docs
-        run: cd docs && bun run docs:build
-
-      - uses: actions/configure-pages@v5
-
+      - run: cd docs && bun install && bun run docs:build
       - uses: actions/upload-pages-artifact@v3
         with:
           path: docs/.vitepress/dist
 
   deploy:
-    environment:
-      name: github-pages
-      url: ${{ github.pages_url }}
     needs: build
     runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@v4
+      - id: deployment
+        uses: actions/deploy-pages@v4
