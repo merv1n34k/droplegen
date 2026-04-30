@@ -126,3 +126,82 @@ PIPELINES: dict[str, list[Step]] = {
         ),
     ],
 }
+
+# --- DOE pipeline generator ---
+# Matrix: (run, Q_oil µl/min, Q_aq µl/min)
+# Q_aq split equally between Cells and Beads
+# Each run: pre-stab (condition: oil >= 60% setpoint) + stab (volume: 30s worth of oil)
+_DOE_MATRIX = [
+    (1, 300.0, 65.0),
+    (2, 300.0, 50.0),
+    (3, 200.0, 80.0),
+    (4, 200.0, 50.0),
+    (5, 250.0, 65.0),
+    (6, 300.0, 80.0),
+    (7, 250.0, 50.0),
+    (8, 250.0, 80.0),
+    (9, 200.0, 65.0),
+    (10, 250.0, 65.0),
+    (11, 250.0, 65.0),
+]
+_DOE_RUN_DURATION_S = 30.0
+
+
+def _build_doe_pipeline() -> list[Step]:
+    steps = []
+    for run, q_oil, q_aq in _DOE_MATRIX:
+        stab_vol = q_oil * _DOE_RUN_DURATION_S / 60.0  # µl
+        prestab_min = q_oil * 0.6
+        steps.append(Step(
+            name=f"R{run}-prestab",
+            sensor_setpoints={0: q_oil},
+            trigger_type="condition",
+            trigger_params={"sensor_index": 0, "min_value": prestab_min},
+            confirm_message=f"Run {run}: Oil={q_oil}, Cells=Beads={q_aq} µl/min. Start?",
+        ))
+        steps.append(Step(
+            name=f"R{run}-stab",
+            sensor_setpoints={0: q_oil, 1: q_aq, 2: q_aq},
+            trigger_type="volume",
+            trigger_params={"sensor_index": 0, "target_volume_ul": stab_vol},
+            on_complete="zero",
+        ))
+    return steps
+
+
+PIPELINES["DOE"] = _build_doe_pipeline()
+
+# --- DOE Triplicate: 1 flow set × 6 replicates = 6 runs ---
+_DOE_TRI_MATRIX = [
+    (1, 300.0, 40.0, "2.5% plur"),
+    (2, 300.0, 40.0, "2.5% plur"),
+    (3, 300.0, 40.0, "2.5% plur"),
+    (4, 300.0, 40.0, "2.5% plur"),
+    (5, 300.0, 40.0, "2.5% plur"),
+    (6, 300.0, 40.0, "2.5% plur"),
+]
+
+
+def _build_doe_tri_pipeline() -> list[Step]:
+    steps = []
+    for run, q_oil, q_aq, note in _DOE_TRI_MATRIX:
+        stab_vol = q_oil * _DOE_RUN_DURATION_S / 60.0
+        prestab_min = q_oil * 0.6
+        steps.append(Step(
+            name=f"R{run}-prestab",
+            sensor_setpoints={0: q_oil},
+            trigger_type="condition",
+            trigger_params={"sensor_index": 0, "min_value": prestab_min},
+            confirm_message=f"Run {run} ({note}): Oil={q_oil}, Aq={q_aq} µl/min. Start?",
+        ))
+        steps.append(Step(
+            name=f"R{run}-stab",
+            sensor_setpoints={0: q_oil, 1: q_aq, 2: q_aq},
+            trigger_type="volume",
+            trigger_params={"sensor_index": 0, "target_volume_ul": stab_vol},
+            on_complete="zero",
+        ))
+    return steps
+
+
+PIPELINES["DOE-Triplicate"] = _build_doe_tri_pipeline()

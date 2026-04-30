@@ -84,6 +84,7 @@ class PipelineEngine(threading.Thread):
 
     def resume(self) -> None:
         if self._state == PipelineState.PAUSED:
+            self._channel_manager.pipeline_resume_all()
             self._pause_event.set()
             self._state = PipelineState.RUNNING
             self._emit_event()

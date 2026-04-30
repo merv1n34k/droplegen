@@ -30,6 +30,7 @@ class Controller:
         self._acquisition: AcquisitionThread | None = None
         self._pipeline: PipelineEngine | None = None
         self._recording = False
+        self._corrected_sensors: set[int] = set()
 
     # --- Hardware ---
     def connect(self, simulated: bool = False) -> HardwareState:
@@ -41,6 +42,11 @@ class Controller:
         for i in range(min(n_sensors, n_pressure)):
             pairs.append((state.sensor_channels[i].index, state.pressure_channels[i].index))
         self.channel_manager.configure_channels(pairs)
+        # In simulated mode, sensor ranges are already corrected by HardwareManager
+        if simulated:
+            self._corrected_sensors = {ch.index for ch in state.sensor_channels}
+        else:
+            self._corrected_sensors = set()
         # Auto-start polling so live values appear immediately
         self.start_polling()
         return state
@@ -124,13 +130,21 @@ class Controller:
     # --- Sensor calibration ---
     def set_sensor_calibration(self, sensor_index: int, calibration: int) -> None:
         self.sdk.set_sensor_calibration(sensor_index, calibration)
+        self._corrected_sensors.add(sensor_index)
         log.info("Sensor %d calibration set to %d", sensor_index, calibration)
 
     def set_sensor_custom_scale(
         self, sensor_index: int, a: float, b: float = 0.0, c: float = 0.0
     ) -> None:
         self.sdk.set_sensor_custom_scale(sensor_index, a, b, c)
+        self._corrected_sensors.add(sensor_index)
         log.info("Sensor %d custom scale: a=%.4f b=%.4f c=%.4f", sensor_index, a, b, c)
+
+    def get_uncorrected_sensors(self) -> list[int]:
+        state = self.hw_manager.state
+        if not state.connected:
+            return []
+        return [ch.index for ch in state.sensor_channels if ch.index not in self._corrected_sensors]
 
     # --- Emergency ---
     def emergency_stop(self) -> None:

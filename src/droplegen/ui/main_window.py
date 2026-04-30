@@ -32,7 +32,7 @@ from PyQt6.QtWidgets import (
 )
 
 from droplegen.controller import Controller
-from droplegen.config import UI_REFRESH_INTERVAL_MS
+from droplegen.config import UI_REFRESH_INTERVAL_MS, SENSOR_CHANNEL_NAMES
 from droplegen.ui.panels.control_panel import ControlPanel
 from droplegen.ui.panels.monitor_panel import MonitorPanel
 from droplegen.ui.panels.pipeline_panel import PipelinePanel
@@ -177,6 +177,7 @@ class MainWindow(QMainWindow):
                 self.control_panel.apply_settings(settings)
 
             mode = "simulated" if state.simulated else "hardware"
+            self._check_sensor_corrections()
             self._status_bar.setStyleSheet("color: #27ae60;")
             self._status_bar.showMessage(
                 f"Connected ({mode})  |  {n_p} pressure + {n_s} sensor channels"
@@ -218,6 +219,21 @@ class MainWindow(QMainWindow):
         self._ctrl.emergency_stop()
         self._status_bar.setStyleSheet("color: #e74c3c;")
         self._status_bar.showMessage("EMERGENCY STOP - all pressures set to 0")
+
+    def _check_sensor_corrections(self) -> None:
+        uncorrected = self._ctrl.get_uncorrected_sensors()
+        if not uncorrected:
+            return
+        names = []
+        for idx in uncorrected:
+            if idx < len(SENSOR_CHANNEL_NAMES):
+                names.append(SENSOR_CHANNEL_NAMES[idx])
+            else:
+                names.append(f"Sensor {idx}")
+        self._status_bar.setStyleSheet("color: #f39c12;")
+        self._status_bar.showMessage(
+            f"Warning: no flow correction applied to {', '.join(names)}"
+        )
 
     # -- Polling --
     def _poll(self) -> None:

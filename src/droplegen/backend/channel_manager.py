@@ -38,6 +38,7 @@ class ChannelManager:
         self._sdk = sdk
         self._lock = threading.Lock()
         self._channels: list[ChannelState] = []
+        self._pipeline_paused = False
 
     @property
     def channels(self) -> list[ChannelState]:
@@ -59,7 +60,8 @@ class ChannelManager:
             ch = self._channels[channel_idx]
             ch.base_setpoint = setpoint
             ch.pressure_setpoint = 0.0
-            if ch.owner == "user":
+            can_apply = ch.owner == "user" or self._pipeline_paused
+            if can_apply:
                 ch.active_setpoint = setpoint
                 ch.mode = "flow"
                 if activate:
@@ -68,14 +70,15 @@ class ChannelManager:
                         ch.sensor_index, ch.pressure_index, setpoint
                     )
                     log.info(
-                        "User flow regulation ch%d: %.2f ul/min",
+                        "User flow regulation ch%d: %.2f ul/min%s",
                         channel_idx, setpoint,
+                        " (paused)" if self._pipeline_paused else "",
                     )
 
     def user_set_pressure(self, channel_idx: int, pressure_mbar: float) -> None:
         with self._lock:
             ch = self._channels[channel_idx]
-            if ch.owner != "user":
+            if ch.owner != "user" and not self._pipeline_paused:
                 return
             ch.mode = "pressure"
             ch.pressure_setpoint = pressure_mbar
@@ -84,14 +87,15 @@ class ChannelManager:
             ch.regulation_active = False
             self._sdk.set_pressure(ch.pressure_index, pressure_mbar)
             log.info(
-                "User pressure ch%d: %.1f mbar",
+                "User pressure ch%d: %.1f mbar%s",
                 channel_idx, pressure_mbar,
+                " (paused)" if self._pipeline_paused else "",
             )
 
     def user_stop_regulation(self, channel_idx: int) -> None:
         with self._lock:
             ch = self._channels[channel_idx]
-            if ch.owner != "user":
+            if ch.owner != "user" and not self._pipeline_paused:
                 return
             ch.regulation_active = False
             ch.base_setpoint = 0.0
@@ -140,6 +144,7 @@ class ChannelManager:
 
     def pipeline_zero_all(self) -> None:
         with self._lock:
+            self._pipeline_paused = True
             for i, ch in enumerate(self._channels):
                 if ch.owner == "pipeline":
                     ch.active_setpoint = 0.0
@@ -148,8 +153,13 @@ class ChannelManager:
                     )
                     log.info("Pipeline zeroed ch%d", i)
 
+    def pipeline_resume_all(self) -> None:
+        with self._lock:
+            self._pipeline_paused = False
+
     def pipeline_release_all(self) -> None:
         with self._lock:
+            self._pipeline_paused = False
             for i, ch in enumerate(self._channels):
                 if ch.owner == "pipeline":
                     self._sdk.set_sensor_regulation(
