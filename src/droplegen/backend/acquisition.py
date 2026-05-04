@@ -58,6 +58,7 @@ class AcquisitionThread(threading.Thread):
         self._sensor_count = sensor_count
         self._data_queue = data_queue
         self._csv_logger = csv_logger
+        self._csv_lock = threading.Lock()
         self._stop_event = threading.Event()
         self._start_time: float = 0.0
 
@@ -77,6 +78,10 @@ class AcquisitionThread(threading.Thread):
         # Volume integration (cumulative)
         self._volumes_ul: list[float] = [0.0] * sensor_count
         self._lock = threading.Lock()
+
+    def set_csv_logger(self, logger: CsvLogger | None) -> None:
+        with self._csv_lock:
+            self._csv_logger = logger
 
     def get_volume(self, sensor_index: int) -> float:
         with self._lock:
@@ -162,11 +167,12 @@ class AcquisitionThread(threading.Thread):
         )
 
         # Write CSV (only if logger is attached and started)
-        if self._csv_logger:
-            self._csv_logger.write_row(
-                timestamp, elapsed_s, pressures, flows,
-                volumes=volumes_snapshot, stability=stability,
-            )
+        with self._csv_lock:
+            if self._csv_logger:
+                self._csv_logger.write_row(
+                    timestamp, elapsed_s, pressures, flows,
+                    volumes=volumes_snapshot, stability=stability,
+                )
 
         # Push to UI queue (non-blocking, drop if full)
         if not self._data_queue.full():

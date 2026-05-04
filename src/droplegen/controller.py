@@ -94,7 +94,7 @@ class Controller:
         self._recording = True
         # Re-attach CSV logger to running acquisition
         if self._acquisition:
-            self._acquisition._csv_logger = self.csv_logger
+            self._acquisition.set_csv_logger(self.csv_logger)
         log.info("Recording started -> %s", filepath)
         return filepath
 
@@ -103,7 +103,7 @@ class Controller:
             self._recording = False
             # Detach CSV logger from acquisition
             if self._acquisition:
-                self._acquisition._csv_logger = None
+                self._acquisition.set_csv_logger(None)
             self.csv_logger.stop()
             log.info("Recording stopped")
 
