@@ -9,6 +9,7 @@ Fluigent Drop-Seq microfluidics control application. PyQt6 GUI with real-time fl
 - **Real-Time Monitoring** — Live flow rate and pressure readings at 100ms intervals with stability detection and cumulative volume tracking
 - **Automated Pipelines** — Multi-step pipelines with time, volume, threshold, and condition triggers. Group steps, repeat, and save as JSON
 - **Hardware Control** — Passive flow regulation via Fluigent Flow EZ controllers and Flow Unit sensors (Oil/Cells/Beads channels)
+- **Log Viewer** — Native Qt window for examining CSV logs with interactive pyqtgraph plots, checkbox filtering (logs/metrics/channels), time binning, axis limits, and crosshair with delta measurement
 - **Simulated Mode** — Full development and testing without hardware using Fluigent SDK simulated instruments
 
 ## Prerequisites
@@ -45,7 +46,7 @@ make fmt     # auto-format code
 
 3-thread model with a central Controller mediator:
 
-- **Main Thread** — Qt UI (control panel, pipeline panel, monitor panel, plots)
+- **Main Thread** — Qt UI (control panel, pipeline panel, monitor panel, pyqtgraph live plots)
 - **Acquisition Thread** — 100ms sensor polling, optional CSV recording
 - **Pipeline Thread** — Sequential step execution with trigger evaluation
 
