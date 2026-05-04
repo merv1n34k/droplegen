@@ -86,6 +86,7 @@ class LivePlot(pg.PlotWidget):
 
     def mouseDragEvent(self, event):
         self._auto_scroll = False
+        super().mouseDragEvent(event)
 
     def clear_data(self):
         self._times.clear()
