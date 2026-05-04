@@ -97,6 +97,11 @@ class MainWindow(QMainWindow):
         self._save_settings_btn.clicked.connect(self._on_save_settings)
         tb_layout.addWidget(self._save_settings_btn)
 
+        self._examine_logs_btn = QPushButton("Examine Logs")
+        self._examine_logs_btn.setFixedHeight(28)
+        self._examine_logs_btn.clicked.connect(self._on_examine_logs)
+        tb_layout.addWidget(self._examine_logs_btn)
+
         tb_layout.addStretch()
 
         self._estop_btn = QPushButton("E-STOP")
@@ -175,6 +180,14 @@ class MainWindow(QMainWindow):
             settings = self._ctrl.load_settings()
             if settings:
                 self.control_panel.apply_settings(settings)
+                # Apply saved regulation response times
+                for i, ch_settings in enumerate(settings):
+                    resp = ch_settings.get("reg_response", "")
+                    if resp and i < len(self._ctrl.channel_manager.channels):
+                        try:
+                            self._ctrl.set_regulation_response(i, int(resp))
+                        except (ValueError, IndexError):
+                            pass
 
             mode = "simulated" if state.simulated else "hardware"
             self._check_sensor_corrections()
@@ -215,6 +228,12 @@ class MainWindow(QMainWindow):
         self._ctrl.save_settings(data)
         self._status_bar.showMessage("Settings saved", 3000)
 
+    def _on_examine_logs(self) -> None:
+        if not hasattr(self, "_log_viewer"):
+            from droplegen.ui.log_viewer import LogViewerWindow
+            self._log_viewer = LogViewerWindow(self)
+        self._log_viewer.show_and_raise()
+
     def _on_emergency_stop(self) -> None:
         self._ctrl.emergency_stop()
         self._status_bar.setStyleSheet("color: #e74c3c;")
@@ -238,11 +257,18 @@ class MainWindow(QMainWindow):
     # -- Polling --
     def _poll(self) -> None:
         try:
+            latest = None
             while not self._ctrl.data_queue.empty():
                 snapshot = self._ctrl.data_queue.get_nowait()
-                self.control_panel.update_from_snapshot(snapshot)
-                self.monitor_panel.update_from_snapshot(snapshot)
-                self.plot_panel.update_from_snapshot(snapshot)
+                latest = snapshot
+                # Ingest data into plots without repainting each time
+                self.plot_panel.ingest_from_snapshot(snapshot)
+            if latest:
+                # Update text panels with latest values only
+                self.control_panel.update_from_snapshot(latest)
+                self.monitor_panel.update_from_snapshot(latest)
+                # Single repaint for all ingested data
+                self.plot_panel.refresh()
             self.monitor_panel.update_csv_status(
                 self._ctrl.csv_logger.filepath,
                 self._ctrl.csv_logger.row_count,
