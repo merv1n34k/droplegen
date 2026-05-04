@@ -31,6 +31,7 @@ from Fluigent.SDK import (  # noqa: E402
     fgt_set_sensorCalibration,
     fgt_get_sensorCalibration,
     fgt_set_sensorCustomScale,
+    fgt_set_sensorRegulationResponse,
     fgt_SENSOR_CALIBRATION,
 )
 
@@ -159,6 +160,9 @@ class FluigentSDK:
 
     def get_sensor_calibration(self, sensor_index: int) -> int:
         return int(fgt_get_sensorCalibration(sensor_index))
+
+    def set_sensor_regulation_response(self, sensor_index: int, response_time: int) -> None:
+        fgt_set_sensorRegulationResponse(sensor_index, response_time)
 
     def set_sensor_custom_scale(
         self, sensor_index: int, a: float, b: float = 0.0, c: float = 0.0,

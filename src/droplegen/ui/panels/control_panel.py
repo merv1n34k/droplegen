@@ -42,6 +42,7 @@ class ChannelWidget(QWidget):
     def __init__(self, name: str, ch_idx: int,
                  set_flow_cb=None, set_pressure_cb=None, stop_cb=None,
                  set_calibration_cb=None, set_custom_scale_cb=None,
+                 set_reg_response_cb=None,
                  flow_step: float = 1.0):
         super().__init__()
         self._ch_idx = ch_idx
@@ -50,6 +51,7 @@ class ChannelWidget(QWidget):
         self._stop_cb = stop_cb
         self._set_calibration_cb = set_calibration_cb
         self._set_custom_scale_cb = set_custom_scale_cb
+        self._set_reg_response_cb = set_reg_response_cb
 
         group = QGroupBox(name)
         group.setStyleSheet(
@@ -162,6 +164,29 @@ class ChannelWidget(QWidget):
         cal_row.addWidget(apply_btn)
         layout.addLayout(cal_row)
 
+        # Regulation response row: Resp: [__] s [Set]
+        resp_row = QHBoxLayout()
+        resp_row.setSpacing(4)
+        resp_lbl = QLabel("Resp:")
+        resp_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        resp_lbl.setMinimumWidth(38)
+        resp_row.addWidget(resp_lbl)
+        self._resp_entry = ScrollableLineEdit(step=1.0, min_val=2.0)
+        self._resp_entry.setPlaceholderText("2")
+        self._resp_entry.setFixedWidth(40)
+        self._resp_entry.setFixedHeight(22)
+        self._resp_entry.returnPressed.connect(self._on_set_reg_response)
+        resp_row.addWidget(self._resp_entry)
+        resp_unit = QLabel("s")
+        resp_unit.setStyleSheet("color: gray; font-size: 10px;")
+        resp_row.addWidget(resp_unit)
+        resp_row.addStretch()
+        resp_set = QPushButton("Set")
+        resp_set.setFixedHeight(22)
+        resp_set.clicked.connect(self._on_set_reg_response)
+        resp_row.addWidget(resp_set)
+        layout.addLayout(resp_row)
+
     def update_values(self, flow: float, pressure: float) -> None:
         self._flow_value.setText(f"{flow:.2f}")
         self._press_value.setText(f"{pressure:.1f}")
@@ -210,6 +235,7 @@ class ChannelWidget(QWidget):
             "scale_a": self._scale_a.text(),
             "scale_b": self._scale_b.text(),
             "scale_c": self._scale_c.text(),
+            "reg_response": self._resp_entry.text(),
         }
 
     def apply_settings(self, d: dict) -> None:
@@ -222,6 +248,15 @@ class ChannelWidget(QWidget):
         self._scale_a.setText(d.get("scale_a", ""))
         self._scale_b.setText(d.get("scale_b", ""))
         self._scale_c.setText(d.get("scale_c", ""))
+        self._resp_entry.setText(d.get("reg_response", ""))
+
+    def _on_set_reg_response(self) -> None:
+        try:
+            val = int(self._resp_entry.text())
+            if self._set_reg_response_cb:
+                self._set_reg_response_cb(self._ch_idx, val)
+        except ValueError:
+            pass
 
     def _on_apply_custom_scale(self) -> None:
         if not self._set_custom_scale_cb:
@@ -274,6 +309,7 @@ class ControlPanel(QWidget):
                 stop_cb=self._on_stop,
                 set_calibration_cb=self._on_set_calibration,
                 set_custom_scale_cb=self._on_set_custom_scale,
+                set_reg_response_cb=self._on_set_reg_response,
                 flow_step=flow_step,
             )
             # Insert before the stretch
@@ -308,6 +344,10 @@ class ControlPanel(QWidget):
         if self._ctrl.hw_manager.connected:
             sensor_idx = self._ctrl.channel_manager.channels[ch_idx].sensor_index
             self._ctrl.set_sensor_custom_scale(sensor_idx, a, b, c)
+
+    def _on_set_reg_response(self, ch_idx: int, response_time: int) -> None:
+        if self._ctrl.hw_manager.connected:
+            self._ctrl.set_regulation_response(ch_idx, response_time)
 
     def get_settings(self) -> list[dict]:
         return [w.get_settings() for w in self._channel_widgets]

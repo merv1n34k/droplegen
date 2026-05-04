@@ -140,6 +140,11 @@ class Controller:
         self._corrected_sensors.add(sensor_index)
         log.info("Sensor %d custom scale: a=%.4f b=%.4f c=%.4f", sensor_index, a, b, c)
 
+    def set_regulation_response(self, channel_idx: int, response_time: int) -> None:
+        sensor_index = self.channel_manager.channels[channel_idx].sensor_index
+        self.sdk.set_sensor_regulation_response(sensor_index, response_time)
+        log.info("Sensor %d regulation response set to %d s", sensor_index, response_time)
+
     def get_uncorrected_sensors(self) -> list[int]:
         state = self.hw_manager.state
         if not state.connected:
