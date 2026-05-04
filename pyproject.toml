@@ -6,6 +6,8 @@ requires-python = ">=3.12"
 dependencies = [
     "PyQt6>=6.5",
     "setuptools<71",
+    "pyqtgraph>=0.13",
+    "pandas>=2.2",
 ]
 
 [project.scripts]
@@ -22,6 +24,7 @@ build-backend = "setuptools.build_meta"
 dev = [
     "pytest>=9.0.2",
     "ruff>=0.15.7",
+    "pandas>=2.2",
 ]
 
 [tool.ruff]
