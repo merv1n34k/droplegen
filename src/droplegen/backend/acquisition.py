@@ -7,6 +7,8 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from queue import Queue
 
+import numpy as np
+
 from droplegen.backend.sdk_wrapper import FluigentSDK
 from droplegen.logger.csv_logger import CsvLogger
 from droplegen.config import (
@@ -138,8 +140,8 @@ class AcquisitionThread(threading.Thread):
         for i in range(self._sensor_count):
             h = self._stability_history[i]
             if len(h) >= STABILITY_WINDOW_SAMPLES:
-                window_range = max(h) - min(h)
-                stable = window_range <= 2 * STABILITY_TOLERANCE_UL_MIN
+                arr = np.array(h)
+                stable = bool(np.ptp(arr) <= 2 * STABILITY_TOLERANCE_UL_MIN)
             else:
                 stable = False
             stability.append(stable)
@@ -174,14 +176,10 @@ class AcquisitionThread(threading.Thread):
     def _compute_stats(history: deque) -> ChannelStats:
         if not history:
             return ChannelStats()
-        vals = list(history)
-        n = len(vals)
-        mean = sum(vals) / n
-        min_v = min(vals)
-        max_v = max(vals)
-        if n > 1:
-            variance = sum((v - mean) ** 2 for v in vals) / (n - 1)
-            std = variance ** 0.5
-        else:
-            std = 0.0
-        return ChannelStats(mean=mean, std=std, min=min_v, max=max_v)
+        arr = np.array(history)
+        return ChannelStats(
+            mean=float(np.mean(arr)),
+            std=float(np.std(arr, ddof=1)) if len(arr) > 1 else 0.0,
+            min=float(np.min(arr)),
+            max=float(np.max(arr)),
+        )
