@@ -6,6 +6,7 @@ import pyqtgraph as pg
 from PyQt6.QtWidgets import QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from droplegen.backend.acquisition import DataSnapshot
+from droplegen.utils import bin_arrays
 
 # 10 min history at 100ms sample rate
 _MAX_SAMPLES = 6000
@@ -59,18 +60,10 @@ class LivePlot(pg.PlotWidget):
         if not self._times:
             return
         t_arr = np.array(self._times)
-        if bin_size > 0 and len(t_arr) > 2:
-            bin_idx = ((t_arr - t_arr[0]) / bin_size).astype(np.intp)
-            counts = np.bincount(bin_idx)
-            mask = counts > 0
-            t_binned = np.bincount(bin_idx, weights=t_arr)[mask] / counts[mask]
-            for i, curve in enumerate(self._curves):
-                y_arr = np.array(self._series[i])
-                y_binned = np.bincount(bin_idx, weights=y_arr)[mask] / counts[mask]
-                curve.setData(t_binned, y_binned)
-        else:
-            for i, curve in enumerate(self._curves):
-                curve.setData(t_arr, np.array(self._series[i]))
+        for i, curve in enumerate(self._curves):
+            y_arr = np.array(self._series[i])
+            t_out, y_out = bin_arrays(t_arr, y_arr, bin_size)
+            curve.setData(t_out, y_out)
         if self._auto_scroll:
             self._update_x_range()
 

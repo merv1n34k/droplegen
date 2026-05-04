@@ -6,6 +6,8 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import pyqtgraph as pg
+
+from droplegen.utils import bin_arrays
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
@@ -50,17 +52,6 @@ def _load_csv(path: Path) -> tuple[pd.DataFrame, int]:
     df = pd.read_csv(path)
     n_channels = sum(1 for c in df.columns if c.startswith("pressure_") and c.endswith("_mbar"))
     return df, n_channels
-
-
-def _bin_arrays(x: np.ndarray, y: np.ndarray, bin_size: float) -> tuple[np.ndarray, np.ndarray]:
-    if bin_size <= 0 or len(x) < 2:
-        return x, y
-    bin_idx = ((x - x[0]) / bin_size).astype(np.intp)
-    counts = np.bincount(bin_idx)
-    mask = counts > 0
-    x_binned = np.bincount(bin_idx, weights=x)[mask] / counts[mask]
-    y_binned = np.bincount(bin_idx, weights=y)[mask] / counts[mask]
-    return x_binned, y_binned
 
 
 class LogViewerWindow(QMainWindow):
@@ -304,7 +295,7 @@ class LogViewerWindow(QMainWindow):
 
                     x_raw = df["elapsed_s"].values
                     y_raw = df[col].values
-                    x, y = _bin_arrays(x_raw, y_raw, bin_size)
+                    x, y = bin_arrays(x_raw, y_raw, bin_size)
                     total_points += len(y)
 
                     pen = pg.mkPen(color=color, width=1.5, style=METRIC_PEN_STYLE[metric])
