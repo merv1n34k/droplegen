@@ -14,6 +14,7 @@ from PySide6.QtWidgets import (
 
 from droplegen.controller import Controller
 from droplegen.config import SENSOR_CHANNEL_NAMES, SENSOR_CALIBRATIONS
+from droplegen.ui.theme import button_qss, configure_monospace_font
 
 
 class ScrollableLineEdit(QLineEdit):
@@ -74,11 +75,7 @@ class ChannelWidget(QWidget):
         header.addWidget(self._mode_label)
         header.addStretch()
         stop_btn = QPushButton("Stop")
-        stop_btn.setFixedHeight(24)
-        stop_btn.setStyleSheet(
-            "QPushButton { background-color: #c0392b; border-color: #c0392b; color: white; padding: 2px 8px; }"
-            "QPushButton:hover { background-color: #e74c3c; }"
-        )
+        stop_btn.setStyleSheet(button_qss("danger"))
         stop_btn.clicked.connect(self._on_stop)
         header.addWidget(stop_btn)
         layout.addLayout(header)
@@ -91,7 +88,9 @@ class ChannelWidget(QWidget):
         flow_lbl.setMinimumWidth(38)
         flow_row.addWidget(flow_lbl)
         self._flow_value = QLabel("---")
-        self._flow_value.setFont(QFont("Courier", 13))
+        flow_font = QFont()
+        configure_monospace_font(flow_font, 13)
+        self._flow_value.setFont(flow_font)
         self._flow_value.setMinimumWidth(70)
         self._flow_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         flow_row.addWidget(self._flow_value)
@@ -105,7 +104,6 @@ class ChannelWidget(QWidget):
         self._flow_entry.returnPressed.connect(self._on_set_flow)
         flow_row.addWidget(self._flow_entry)
         flow_set = QPushButton("Set")
-        flow_set.setFixedHeight(24)
         flow_set.clicked.connect(self._on_set_flow)
         flow_row.addWidget(flow_set)
         layout.addLayout(flow_row)
@@ -118,7 +116,9 @@ class ChannelWidget(QWidget):
         press_lbl.setMinimumWidth(38)
         press_row.addWidget(press_lbl)
         self._press_value = QLabel("---")
-        self._press_value.setFont(QFont("Courier", 13))
+        press_font = QFont()
+        configure_monospace_font(press_font, 13)
+        self._press_value.setFont(press_font)
         self._press_value.setMinimumWidth(70)
         self._press_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         press_row.addWidget(self._press_value)
@@ -132,7 +132,6 @@ class ChannelWidget(QWidget):
         self._press_entry.returnPressed.connect(self._on_set_pressure)
         press_row.addWidget(self._press_entry)
         press_set = QPushButton("Set")
-        press_set.setFixedHeight(24)
         press_set.clicked.connect(self._on_set_pressure)
         press_row.addWidget(press_set)
         layout.addLayout(press_row)
@@ -145,7 +144,6 @@ class ChannelWidget(QWidget):
         cal_row.addWidget(cal_lbl)
         self._fluid_combo = QComboBox()
         self._fluid_combo.addItems(list(SENSOR_CALIBRATIONS.keys()))
-        self._fluid_combo.setFixedHeight(22)
         self._fluid_combo.setFixedWidth(70)
         self._fluid_combo.currentTextChanged.connect(self._on_fluid_changed)
         cal_row.addWidget(self._fluid_combo)
@@ -154,12 +152,12 @@ class ChannelWidget(QWidget):
             lbl.setStyleSheet("font-size: 10px; color: gray;")
             cal_row.addWidget(lbl)
             inp = QLineEdit()
-            inp.setFixedSize(40, 22)
+            inp.setFixedWidth(40)
             inp.setPlaceholderText("1" if coeff == "a" else "0")
             cal_row.addWidget(inp)
             setattr(self, f"_scale_{coeff}", inp)
         apply_btn = QPushButton("Apply")
-        apply_btn.setFixedHeight(22)
+        apply_btn.setFixedWidth(52)
         apply_btn.clicked.connect(self._on_apply_custom_scale)
         cal_row.addWidget(apply_btn)
         layout.addLayout(cal_row)
@@ -174,7 +172,6 @@ class ChannelWidget(QWidget):
         self._resp_entry = ScrollableLineEdit(step=1.0, min_val=2.0)
         self._resp_entry.setPlaceholderText("2")
         self._resp_entry.setFixedWidth(40)
-        self._resp_entry.setFixedHeight(22)
         self._resp_entry.returnPressed.connect(self._on_set_reg_response)
         resp_row.addWidget(self._resp_entry)
         resp_unit = QLabel("s")
@@ -182,7 +179,7 @@ class ChannelWidget(QWidget):
         resp_row.addWidget(resp_unit)
         resp_row.addStretch()
         resp_set = QPushButton("Set")
-        resp_set.setFixedHeight(22)
+        resp_set.setFixedWidth(44)
         resp_set.clicked.connect(self._on_set_reg_response)
         resp_row.addWidget(resp_set)
         layout.addLayout(resp_row)

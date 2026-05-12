@@ -7,6 +7,7 @@ from PySide6.QtCore import QTimer
 
 from droplegen.controller import Controller
 from droplegen.ui.main_window import MainWindow
+from droplegen.ui.theme import GLOBAL_QSS
 
 _DARK_QSS = """
 QWidget {
@@ -143,7 +144,7 @@ class DroplegenApp:
             datefmt="%H:%M:%S",
         )
         self._qapp = QApplication(sys.argv)
-        self._qapp.setStyleSheet(_DARK_QSS)
+        self._qapp.setStyleSheet(GLOBAL_QSS)
 
         self.controller = Controller()
         self.window = MainWindow(self.controller)
