@@ -2,8 +2,8 @@
 import logging
 import sys
 
-from PyQt6.QtWidgets import QApplication
-from PyQt6.QtCore import QTimer
+from PySide6.QtWidgets import QApplication
+from PySide6.QtCore import QTimer
 
 from droplegen.controller import Controller
 from droplegen.ui.main_window import MainWindow

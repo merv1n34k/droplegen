@@ -9,7 +9,7 @@ def main():
     app = DroplegenApp()
 
     def _sigint_handler(sig, frame):
-        from PyQt6.QtWidgets import QApplication
+        from PySide6.QtWidgets import QApplication
         QApplication.quit()
 
     signal.signal(signal.SIGINT, _sigint_handler)

@@ -8,9 +8,9 @@ import pandas as pd
 import pyqtgraph as pg
 
 from droplegen.utils import bin_arrays
-from PyQt6.QtCore import Qt
-from PyQt6.QtGui import QFont
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont
+from PySide6.QtWidgets import (
     QCheckBox,
     QDoubleSpinBox,
     QFileDialog,

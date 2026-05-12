@@ -3,7 +3,7 @@ from collections import deque
 
 import numpy as np
 import pyqtgraph as pg
-from PyQt6.QtWidgets import QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
 
 from droplegen.backend.acquisition import DataSnapshot
 from droplegen.utils import bin_arrays

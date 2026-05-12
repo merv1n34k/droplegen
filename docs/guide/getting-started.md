@@ -29,7 +29,7 @@ This runs `uv sync` to install all dependencies into a virtual environment.
 make dev
 ```
 
-This launches the PyQt6 GUI. On startup you can connect to hardware or use simulated mode.
+This launches the PySide6 GUI. On startup you can connect to hardware or use simulated mode.
 
 ## Simulated Mode
 

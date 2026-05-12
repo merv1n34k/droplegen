@@ -1,6 +1,6 @@
 # Droplegen
 
-Fluigent Drop-Seq microfluidics control application. PyQt6 GUI with real-time flow control, automated pipelines, and live monitoring for Fluigent hardware.
+Fluigent Drop-Seq microfluidics control application. PySide6 GUI with real-time flow control, automated pipelines, and live monitoring for Fluigent hardware.
 
 ![Droplegen preview](docs/preview.png)
 
