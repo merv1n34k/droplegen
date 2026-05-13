@@ -32,6 +32,7 @@ export default defineConfig({
         text: 'Reference',
         items: [
           { text: 'Makefile Targets', link: '/reference/makefile' },
+          { text: 'Release Process', link: '/reference/release' },
         ],
       },
     ],

@@ -1,6 +1,6 @@
 # Droplegen
 
-Fluigent Drop-Seq microfluidics control application. PySide6 GUI with real-time flow control, automated pipelines, and live monitoring for Fluigent hardware.
+Fluigent Drop-Seq microfluidics control application. DropletUI/PySide6 frontend with real-time flow control, automated pipelines, and live monitoring for Fluigent hardware.
 
 ![Droplegen preview](docs/preview.png)
 
@@ -41,6 +41,18 @@ make test    # run unit tests
 make lint    # check code style (ruff)
 make fmt     # auto-format code
 ```
+
+## Release
+
+Releases are published to PyPI from GitHub Releases. After bumping the version and passing checks, tag the release and publish it on GitHub:
+
+```bash
+git tag v0.3.0
+git push origin master --follow-tags
+gh release create v0.3.0 --title "v0.3.0" --notes "DropletUI 0.1.1 migration and UI cleanup."
+```
+
+Publishing the GitHub Release triggers `.github/workflows/publish.yml`, which builds with `uv build` and publishes through PyPI trusted publishing.
 
 ## Architecture
 
