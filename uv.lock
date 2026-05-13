@@ -21,9 +21,10 @@ wheels = [
 
 [[package]]
 name = "droplegen"
-version = "0.2.0"
+version = "0.3.0"
 source = { editable = "." }
 dependencies = [
+    { name = "dropletui" },
     { name = "pandas" },
     { name = "pyqtgraph" },
     { name = "pyside6" },
@@ -39,6 +40,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
+    { name = "dropletui", specifier = ">=0.1.1" },
     { name = "pandas", specifier = ">=2.2" },
     { name = "pyqtgraph", specifier = ">=0.13" },
     { name = "pyside6", specifier = ">=6.5" },
@@ -50,6 +52,19 @@ dev = [
     { name = "pandas", specifier = ">=2.2" },
     { name = "pytest", specifier = ">=9.0.2" },
     { name = "ruff", specifier = ">=0.15.7" },
+]
+
+[[package]]
+name = "dropletui"
+version = "0.1.1"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "pyqtgraph" },
+    { name = "pyside6" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/73/33/3da3870f8eaa5703d7904649d86c0b59d5f30a85d8f20fa13086ec48bdb1/dropletui-0.1.1.tar.gz", hash = "sha256:833d4d35e972c4e756a6fc49be56e64962a8d5bb946761e6694e32c3314bfa31", size = 10635, upload-time = "2026-05-13T21:31:45.432Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7b/87/5984ccbfbff5fc8c280a98b35d7e449648d37731a4dc7478053c8090a35d/dropletui-0.1.1-py3-none-any.whl", hash = "sha256:95f99d09ece65e2aa18fbd493297e02a3da309c134614afdb02f1e22ffc13fa9", size = 13960, upload-time = "2026-05-13T21:31:44.355Z" },
 ]
 
 [[package]]
