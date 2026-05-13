@@ -24,4 +24,4 @@ features:
     details: Full development and testing without hardware using Fluigent SDK simulated instruments.
 ---
 
-![Droplegen preview](./preview.png)
+![Droplegen preview](./preview_v2.png)

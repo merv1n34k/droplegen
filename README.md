@@ -2,7 +2,7 @@
 
 Fluigent Drop-Seq microfluidics control application. DropletUI/PySide6 frontend with real-time flow control, automated pipelines, and live monitoring for Fluigent hardware.
 
-![Droplegen preview](docs/preview.png)
+![Droplegen preview](docs/preview_v2.png)
 
 ## Features
 
