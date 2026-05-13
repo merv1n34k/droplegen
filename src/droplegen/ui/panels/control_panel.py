@@ -2,39 +2,26 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QPushButton,
+    QDoubleSpinBox,
+    QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+import dropletui as ui
+
 from droplegen.controller import Controller
 from droplegen.config import SENSOR_CHANNEL_NAMES, SENSOR_CALIBRATIONS
-from droplegen.ui.theme import button_qss, configure_monospace_font
 
 
-class ScrollableLineEdit(QLineEdit):
-    """QLineEdit with scroll wheel support for numeric values."""
+def _small_label(text: str) -> QLabel:
+    return ui.status_label(text, kind="muted")
 
-    def __init__(self, step: float = 1.0, min_val: float = 0.0):
-        super().__init__()
-        self._step = step
-        self._min_val = min_val
 
-    def wheelEvent(self, event):
-        delta = event.angleDelta().y()
-        try:
-            val = float(self.text() or "0")
-        except ValueError:
-            val = 0.0
-        val += self._step if delta > 0 else -self._step
-        val = max(self._min_val, val)
-        self.setText(f"{val:g}")
-        event.accept()
+def _spin_text(widget: QDoubleSpinBox | QSpinBox) -> str:
+    return f"{widget.value():g}"
 
 
 class ChannelWidget(QWidget):
@@ -54,28 +41,19 @@ class ChannelWidget(QWidget):
         self._set_custom_scale_cb = set_custom_scale_cb
         self._set_reg_response_cb = set_reg_response_cb
 
-        group = QGroupBox(name)
-        group.setStyleSheet(
-            "QGroupBox { font-size: 13px; font-weight: bold; border: 1px solid #333; "
-            "border-radius: 4px; margin-top: 8px; padding-top: 4px; } "
-            "QGroupBox::title { subcontrol-origin: margin; left: 8px; padding: 0 4px; }"
-        )
+        group, layout = ui.section(name)
         outer = QVBoxLayout(self)
         outer.setContentsMargins(0, 0, 0, 0)
         outer.addWidget(group)
 
-        layout = QVBoxLayout(group)
-        layout.setContentsMargins(8, 16, 8, 6)
-        layout.setSpacing(4)
-
         # Header row: mode + stop
         header = QHBoxLayout()
-        self._mode_label = QLabel("OFF")
-        self._mode_label.setStyleSheet("color: gray; font-size: 12px; font-weight: bold;")
+        self._mode_label = ui.status_label("OFF", kind="muted", small=False)
+        self._mode_kind = "muted"
         header.addWidget(self._mode_label)
+        self._header_layout = header
         header.addStretch()
-        stop_btn = QPushButton("Stop")
-        stop_btn.setStyleSheet(button_qss("danger"))
+        stop_btn = ui.button("Stop", variant="danger")
         stop_btn.clicked.connect(self._on_stop)
         header.addWidget(stop_btn)
         layout.addLayout(header)
@@ -83,27 +61,21 @@ class ChannelWidget(QWidget):
         # Flow row: value + entry + set
         flow_row = QHBoxLayout()
         flow_row.setSpacing(4)
-        flow_lbl = QLabel("Flow:")
-        flow_lbl.setStyleSheet("font-size: 11px; color: gray;")
-        flow_lbl.setMinimumWidth(38)
+        flow_lbl = _small_label("Flow:")
         flow_row.addWidget(flow_lbl)
         self._flow_value = QLabel("---")
         flow_font = QFont()
-        configure_monospace_font(flow_font, 13)
+        ui.configure_monospace_font(flow_font, 13)
         self._flow_value.setFont(flow_font)
-        self._flow_value.setMinimumWidth(70)
         self._flow_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         flow_row.addWidget(self._flow_value)
-        unit = QLabel("\u00b5l/min")
-        unit.setStyleSheet("color: gray; font-size: 10px;")
+        unit = _small_label("\u00b5l/min")
         flow_row.addWidget(unit)
         flow_row.addStretch()
-        self._flow_entry = ScrollableLineEdit(step=flow_step)
-        self._flow_entry.setPlaceholderText("0.0")
-        self._flow_entry.setFixedWidth(60)
-        self._flow_entry.returnPressed.connect(self._on_set_flow)
+        self._flow_entry = ui.double_box(maximum=1_000_000.0, step=flow_step, decimals=3)
+        self._flow_entry.lineEdit().returnPressed.connect(self._on_set_flow)
         flow_row.addWidget(self._flow_entry)
-        flow_set = QPushButton("Set")
+        flow_set = ui.button("Set", size="inline")
         flow_set.clicked.connect(self._on_set_flow)
         flow_row.addWidget(flow_set)
         layout.addLayout(flow_row)
@@ -111,27 +83,21 @@ class ChannelWidget(QWidget):
         # Pressure row: value + entry + set
         press_row = QHBoxLayout()
         press_row.setSpacing(4)
-        press_lbl = QLabel("Press:")
-        press_lbl.setStyleSheet("font-size: 11px; color: gray;")
-        press_lbl.setMinimumWidth(38)
+        press_lbl = _small_label("Press:")
         press_row.addWidget(press_lbl)
         self._press_value = QLabel("---")
         press_font = QFont()
-        configure_monospace_font(press_font, 13)
+        ui.configure_monospace_font(press_font, 13)
         self._press_value.setFont(press_font)
-        self._press_value.setMinimumWidth(70)
         self._press_value.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         press_row.addWidget(self._press_value)
-        unit2 = QLabel("mbar")
-        unit2.setStyleSheet("color: gray; font-size: 10px;")
+        unit2 = _small_label("mbar")
         press_row.addWidget(unit2)
         press_row.addStretch()
-        self._press_entry = ScrollableLineEdit(step=10.0)
-        self._press_entry.setPlaceholderText("0.0")
-        self._press_entry.setFixedWidth(60)
-        self._press_entry.returnPressed.connect(self._on_set_pressure)
+        self._press_entry = ui.double_box(maximum=1_000_000.0, step=10.0, decimals=1)
+        self._press_entry.lineEdit().returnPressed.connect(self._on_set_pressure)
         press_row.addWidget(self._press_entry)
-        press_set = QPushButton("Set")
+        press_set = ui.button("Set", size="inline")
         press_set.clicked.connect(self._on_set_pressure)
         press_row.addWidget(press_set)
         layout.addLayout(press_row)
@@ -139,25 +105,19 @@ class ChannelWidget(QWidget):
         # Calibration row: Fluid [combo] a:[__] b:[__] c:[__] [Apply]
         cal_row = QHBoxLayout()
         cal_row.setSpacing(4)
-        cal_lbl = QLabel("Fluid:")
-        cal_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        cal_lbl = _small_label("Fluid:")
         cal_row.addWidget(cal_lbl)
-        self._fluid_combo = QComboBox()
-        self._fluid_combo.addItems(list(SENSOR_CALIBRATIONS.keys()))
-        self._fluid_combo.setFixedWidth(70)
+        self._fluid_combo = ui.combo_box(SENSOR_CALIBRATIONS.keys())
         self._fluid_combo.currentTextChanged.connect(self._on_fluid_changed)
         cal_row.addWidget(self._fluid_combo)
         for coeff in ("a", "b", "c"):
-            lbl = QLabel(f"{coeff}:")
-            lbl.setStyleSheet("font-size: 10px; color: gray;")
+            lbl = _small_label(f"{coeff}:")
             cal_row.addWidget(lbl)
-            inp = QLineEdit()
-            inp.setFixedWidth(40)
+            inp = ui.line_edit()
             inp.setPlaceholderText("1" if coeff == "a" else "0")
             cal_row.addWidget(inp)
             setattr(self, f"_scale_{coeff}", inp)
-        apply_btn = QPushButton("Apply")
-        apply_btn.setFixedWidth(52)
+        apply_btn = ui.button("Apply", size="inline")
         apply_btn.clicked.connect(self._on_apply_custom_scale)
         cal_row.addWidget(apply_btn)
         layout.addLayout(cal_row)
@@ -165,21 +125,15 @@ class ChannelWidget(QWidget):
         # Regulation response row: Resp: [__] s [Set]
         resp_row = QHBoxLayout()
         resp_row.setSpacing(4)
-        resp_lbl = QLabel("Resp:")
-        resp_lbl.setStyleSheet("font-size: 11px; color: gray;")
-        resp_lbl.setMinimumWidth(38)
+        resp_lbl = _small_label("Resp:")
         resp_row.addWidget(resp_lbl)
-        self._resp_entry = ScrollableLineEdit(step=1.0, min_val=2.0)
-        self._resp_entry.setPlaceholderText("2")
-        self._resp_entry.setFixedWidth(40)
-        self._resp_entry.returnPressed.connect(self._on_set_reg_response)
+        self._resp_entry = ui.int_box(minimum=2, maximum=3600, value=2)
+        self._resp_entry.lineEdit().returnPressed.connect(self._on_set_reg_response)
         resp_row.addWidget(self._resp_entry)
-        resp_unit = QLabel("s")
-        resp_unit.setStyleSheet("color: gray; font-size: 10px;")
+        resp_unit = _small_label("s")
         resp_row.addWidget(resp_unit)
         resp_row.addStretch()
-        resp_set = QPushButton("Set")
-        resp_set.setFixedWidth(44)
+        resp_set = ui.button("Set", size="inline")
         resp_set.clicked.connect(self._on_set_reg_response)
         resp_row.addWidget(resp_set)
         layout.addLayout(resp_row)
@@ -189,19 +143,25 @@ class ChannelWidget(QWidget):
         self._press_value.setText(f"{pressure:.1f}")
 
     def set_mode(self, mode: str, owner: str = "user") -> None:
-        colors = {"off": "gray", "flow": "#27ae60", "pressure": "#e67e22"}
+        kinds = {"off": "muted", "flow": "success", "pressure": "warning"}
         if owner == "pipeline":
-            color = "#2980b9"
+            kind = "primary"
             text = "PIPELINE"
         else:
-            color = colors.get(mode, "gray")
+            kind = kinds.get(mode, "muted")
             text = mode.upper()
-        self._mode_label.setText(text)
-        self._mode_label.setStyleSheet(f"color: {color}; font-size: 12px; font-weight: bold;")
+        if self._mode_kind == kind:
+            self._mode_label.setText(text)
+            return
+        replacement = ui.status_label(text, kind=kind, small=False)
+        self._header_layout.replaceWidget(self._mode_label, replacement)
+        self._mode_label.deleteLater()
+        self._mode_label = replacement
+        self._mode_kind = kind
 
     def _on_set_flow(self) -> None:
         try:
-            val = float(self._flow_entry.text())
+            val = self._flow_entry.value()
             if self._set_flow_cb:
                 self._set_flow_cb(self._ch_idx, val)
         except ValueError:
@@ -209,7 +169,7 @@ class ChannelWidget(QWidget):
 
     def _on_set_pressure(self) -> None:
         try:
-            val = float(self._press_entry.text())
+            val = self._press_entry.value()
             if self._set_pressure_cb:
                 self._set_pressure_cb(self._ch_idx, val)
         except ValueError:
@@ -226,18 +186,23 @@ class ChannelWidget(QWidget):
 
     def get_settings(self) -> dict:
         return {
-            "flow": self._flow_entry.text(),
-            "pressure": self._press_entry.text(),
+            "flow": _spin_text(self._flow_entry),
+            "pressure": _spin_text(self._press_entry),
             "fluid": self._fluid_combo.currentText(),
             "scale_a": self._scale_a.text(),
             "scale_b": self._scale_b.text(),
             "scale_c": self._scale_c.text(),
-            "reg_response": self._resp_entry.text(),
+            "reg_response": _spin_text(self._resp_entry),
         }
 
     def apply_settings(self, d: dict) -> None:
-        self._flow_entry.setText(d.get("flow", ""))
-        self._press_entry.setText(d.get("pressure", ""))
+        try:
+            if d.get("flow"):
+                self._flow_entry.setValue(float(d["flow"]))
+            if d.get("pressure"):
+                self._press_entry.setValue(float(d["pressure"]))
+        except ValueError:
+            pass
         fluid = d.get("fluid", "")
         idx = self._fluid_combo.findText(fluid)
         if idx >= 0:
@@ -245,11 +210,15 @@ class ChannelWidget(QWidget):
         self._scale_a.setText(d.get("scale_a", ""))
         self._scale_b.setText(d.get("scale_b", ""))
         self._scale_c.setText(d.get("scale_c", ""))
-        self._resp_entry.setText(d.get("reg_response", ""))
+        try:
+            if d.get("reg_response"):
+                self._resp_entry.setValue(int(d["reg_response"]))
+        except ValueError:
+            pass
 
     def _on_set_reg_response(self) -> None:
         try:
-            val = int(self._resp_entry.text())
+            val = self._resp_entry.value()
             if self._set_reg_response_cb:
                 self._set_reg_response_cb(self._ch_idx, val)
         except ValueError:
@@ -281,8 +250,7 @@ class ControlPanel(QWidget):
         header.setFont(QFont("", 14, QFont.Weight.Bold))
         self._layout.addWidget(header)
 
-        self._placeholder = QLabel("Not connected")
-        self._placeholder.setStyleSheet("color: gray;")
+        self._placeholder = ui.status_label("Not connected", kind="muted", small=False)
         self._placeholder.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._layout.addWidget(self._placeholder)
 

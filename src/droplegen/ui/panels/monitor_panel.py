@@ -9,6 +9,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+import dropletui as ui
+
 from droplegen.config import PRESSURE_CHANNEL_NAMES, SENSOR_CHANNEL_NAMES
 from droplegen.backend.acquisition import DataSnapshot
 
@@ -28,20 +30,19 @@ class MonitorPanel(QWidget):
         header_lbl.setFont(QFont("", 14, QFont.Weight.Bold))
         header_row.addWidget(header_lbl)
         header_row.addStretch()
-        self._elapsed_label = QLabel("")
-        self._elapsed_label.setStyleSheet("color: gray; font-size: 11px;")
+        self._elapsed_label = ui.status_label("")
         header_row.addWidget(self._elapsed_label)
         layout.addLayout(header_row)
 
         # CSV status
         csv_row = QHBoxLayout()
         csv_row.addWidget(QLabel("CSV:"))
-        self._csv_path_label = QLabel("--")
-        self._csv_path_label.setStyleSheet("color: gray; font-size: 11px;")
+        self._csv_path_label = ui.status_label("--")
         csv_row.addWidget(self._csv_path_label)
+        self._csv_row = csv_row
+        self._csv_path_kind = "muted"
         csv_row.addStretch()
-        self._csv_rows_label = QLabel("")
-        self._csv_rows_label.setStyleSheet("font-size: 11px;")
+        self._csv_rows_label = ui.status_label("", kind="default")
         csv_row.addWidget(self._csv_rows_label)
         layout.addLayout(csv_row)
 
@@ -78,31 +79,28 @@ class MonitorPanel(QWidget):
             self._next_row_idx += 1
 
     def _create_row(self, row_idx: int, name: str, ch_type: str, index: int) -> dict:
-        labels = {"type": ch_type, "index": index}
-        name_lbl = QLabel(name)
-        name_lbl.setStyleSheet("font-size: 11px;")
+        labels = {"type": ch_type, "index": index, "row": row_idx}
+        name_lbl = ui.status_label(name, kind="default")
         self._table.addWidget(name_lbl, row_idx, 0)
 
         for col, key in enumerate(["value", "mean", "std", "min", "max"], start=1):
-            lbl = QLabel("---")
-            lbl.setStyleSheet("font-size: 11px;")
+            lbl = ui.status_label("---", kind="default")
             lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self._table.addWidget(lbl, row_idx, col)
             labels[key] = lbl
 
         # Volume column (only meaningful for sensors)
-        vol_lbl = QLabel("")
-        vol_lbl.setStyleSheet("font-size: 11px;")
+        vol_lbl = ui.status_label("", kind="default")
         vol_lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         self._table.addWidget(vol_lbl, row_idx, 6)
         labels["volume"] = vol_lbl
 
         # Stable column (only meaningful for sensors)
-        stable_lbl = QLabel("")
-        stable_lbl.setStyleSheet("font-size: 11px;")
+        stable_lbl = ui.status_label("", kind="muted")
         stable_lbl.setAlignment(Qt.AlignmentFlag.AlignCenter)
         self._table.addWidget(stable_lbl, row_idx, 7)
         labels["stable"] = stable_lbl
+        labels["stable_kind"] = "muted"
 
         return labels
 
@@ -136,22 +134,39 @@ class MonitorPanel(QWidget):
                 # Stability
                 if idx < len(snapshot.stability):
                     if snapshot.stability[idx]:
-                        row["stable"].setText("YES")
-                        row["stable"].setStyleSheet("color: #27ae60; font-size: 11px; font-weight: bold;")
+                        self._set_stable_status(row, "YES", "success")
                     else:
-                        row["stable"].setText("no")
-                        row["stable"].setStyleSheet("color: gray; font-size: 11px;")
+                        self._set_stable_status(row, "no", "muted")
 
     def update_csv_status(self, filepath: str | None, row_count: int) -> None:
         if filepath:
             name = filepath.rsplit("/", 1)[-1] if "/" in filepath else filepath
-            self._csv_path_label.setText(name)
-            self._csv_path_label.setStyleSheet("color: white; font-size: 11px;")
+            self._set_csv_path(name, "default")
             self._csv_rows_label.setText(f"{row_count} rows")
         else:
-            self._csv_path_label.setText("--")
-            self._csv_path_label.setStyleSheet("color: gray; font-size: 11px;")
+            self._set_csv_path("--", "muted")
             self._csv_rows_label.setText("")
+
+    def _set_stable_status(self, row: dict, text: str, kind: str) -> None:
+        if row.get("stable_kind") == kind:
+            row["stable"].setText(text)
+            return
+        replacement = ui.status_label(text, kind=kind)
+        replacement.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._table.replaceWidget(row["stable"], replacement)
+        row["stable"].deleteLater()
+        row["stable"] = replacement
+        row["stable_kind"] = kind
+
+    def _set_csv_path(self, text: str, kind: str) -> None:
+        if self._csv_path_kind == kind:
+            self._csv_path_label.setText(text)
+            return
+        replacement = ui.status_label(text, kind=kind)
+        self._csv_row.replaceWidget(self._csv_path_label, replacement)
+        self._csv_path_label.deleteLater()
+        self._csv_path_label = replacement
+        self._csv_path_kind = kind
 
     def clear_channels(self) -> None:
         for row in self._rows:

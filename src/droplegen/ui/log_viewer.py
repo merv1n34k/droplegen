@@ -9,26 +9,29 @@ import pyqtgraph as pg
 
 from droplegen.utils import bin_arrays
 from PySide6.QtCore import Qt
-from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
     QCheckBox,
-    QDoubleSpinBox,
     QFileDialog,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QMainWindow,
-    QPushButton,
     QScrollArea,
-    QVBoxLayout,
     QWidget,
 )
+
+import dropletui as ui
 
 CHANNELS = {0: "Oil", 1: "Cells", 2: "Beads"}
 
 LOG_COLORS = [
-    "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
-    "#9467bd", "#8c564b", "#e377c2", "#17becf",
+    ui.Theme.ACCENT,
+    ui.Theme.WARNING,
+    ui.Theme.SUCCESS,
+    ui.Theme.DANGER_HOVER,
+    ui.Theme.INFO,
+    ui.Theme.WARNING_DARK,
+    ui.Theme.SUCCESS_HOVER,
+    ui.Theme.TEXT_MUTED,
 ]
 
 METRIC_COLS = {
@@ -73,71 +76,49 @@ class LogViewerWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         layout = QHBoxLayout(central)
-        layout.setContentsMargins(6, 6, 6, 6)
-        layout.setSpacing(6)
+        layout.setContentsMargins(
+            ui.Theme.WINDOW_PADDING,
+            ui.Theme.WINDOW_PADDING,
+            ui.Theme.WINDOW_PADDING,
+            ui.Theme.WINDOW_PADDING,
+        )
+        layout.setSpacing(ui.Theme.SPACE_2)
 
         # -- Left sidebar --
-        sidebar = QWidget()
-        sidebar.setFixedWidth(180)
-        sb_layout = QVBoxLayout(sidebar)
-        sb_layout.setContentsMargins(0, 0, 0, 0)
-        sb_layout.setSpacing(8)
+        sidebar, sb_layout = ui.side_panel(maximum_width=220)
 
-        load_btn = QPushButton("Load Files...")
-        load_btn.setFixedHeight(32)
+        load_btn = ui.button("Load Files...", variant="primary", size="large")
         load_btn.clicked.connect(self._load_files)
         sb_layout.addWidget(load_btn)
 
         # Logs group (scrollable)
-        self._logs_group = QGroupBox("LOGS")
-        self._logs_group.setFont(QFont("", 10, QFont.Weight.Bold))
-        self._logs_layout = QVBoxLayout()
-        self._logs_layout.setContentsMargins(4, 4, 4, 4)
-        self._logs_layout.setSpacing(2)
-        self._logs_group.setLayout(self._logs_layout)
+        self._logs_group, self._logs_layout = ui.section("LOGS")
 
         scroll = QScrollArea()
         scroll.setWidget(self._logs_group)
         scroll.setWidgetResizable(True)
-        scroll.setMaximumHeight(200)
         sb_layout.addWidget(scroll)
 
         # Metrics group
-        metrics_group = QGroupBox("METRICS")
-        metrics_group.setFont(QFont("", 10, QFont.Weight.Bold))
-        m_layout = QVBoxLayout()
-        m_layout.setContentsMargins(4, 4, 4, 4)
-        m_layout.setSpacing(2)
+        metrics_group, m_layout = ui.section("METRICS")
         for metric in METRIC_COLS:
-            cb = QCheckBox(metric)
-            cb.setChecked(True)
+            cb = ui.check_box(metric, checked=True)
             cb.stateChanged.connect(self._on_filter_changed)
             m_layout.addWidget(cb)
             self._metric_cbs[metric] = cb
-        metrics_group.setLayout(m_layout)
         sb_layout.addWidget(metrics_group)
 
         # Channels group
-        channels_group = QGroupBox("CHANNELS")
-        channels_group.setFont(QFont("", 10, QFont.Weight.Bold))
-        c_layout = QVBoxLayout()
-        c_layout.setContentsMargins(4, 4, 4, 4)
-        c_layout.setSpacing(2)
+        channels_group, c_layout = ui.section("CHANNELS")
         for idx, name in CHANNELS.items():
-            cb = QCheckBox(name)
-            cb.setChecked(True)
+            cb = ui.check_box(name, checked=True)
             cb.stateChanged.connect(self._on_filter_changed)
             c_layout.addWidget(cb)
             self._channel_cbs[idx] = cb
-        channels_group.setLayout(c_layout)
         sb_layout.addWidget(channels_group)
 
         # Axis limits group
-        limits_group = QGroupBox("LIMITS")
-        limits_group.setFont(QFont("", 10, QFont.Weight.Bold))
-        lim_layout = QVBoxLayout()
-        lim_layout.setContentsMargins(4, 4, 4, 4)
-        lim_layout.setSpacing(4)
+        limits_group, lim_layout = ui.section("LIMITS")
 
         self._limit_spins = {}
         for axis, label in [("x", "X"), ("y", "Y")]:
@@ -145,9 +126,7 @@ class LogViewerWindow(QMainWindow):
                 row = QHBoxLayout()
                 row.setSpacing(4)
                 row.addWidget(QLabel(f"{label} {bound}"))
-                spin = QDoubleSpinBox()
-                spin.setDecimals(1)
-                spin.setRange(-1e6, 1e6)
+                spin = ui.double_box(minimum=-1e6, maximum=1e6, decimals=1)
                 spin.setSpecialValueText("auto")
                 spin.setValue(spin.minimum())  # show "auto"
                 spin.editingFinished.connect(self._apply_limits)
@@ -159,30 +138,30 @@ class LogViewerWindow(QMainWindow):
         bin_row = QHBoxLayout()
         bin_row.setSpacing(4)
         bin_row.addWidget(QLabel("Bin"))
-        self._bin_spin = QDoubleSpinBox()
-        self._bin_spin.setRange(0.0, 60.0)
-        self._bin_spin.setSingleStep(0.1)
-        self._bin_spin.setDecimals(2)
-        self._bin_spin.setSuffix(" s")
+        self._bin_spin = ui.double_box(
+            minimum=0.0,
+            maximum=60.0,
+            step=0.1,
+            decimals=2,
+            suffix=" s",
+        )
         self._bin_spin.setSpecialValueText("off")
-        self._bin_spin.setValue(0.0)
         self._bin_spin.setToolTip("Merge points into time bins (0 = raw)")
         self._bin_spin.valueChanged.connect(self._on_filter_changed)
         bin_row.addWidget(self._bin_spin)
         lim_layout.addLayout(bin_row)
 
-        reset_btn = QPushButton("Reset Limits")
+        reset_btn = ui.button("Reset Limits")
         reset_btn.clicked.connect(self._reset_limits)
         lim_layout.addWidget(reset_btn)
 
-        limits_group.setLayout(lim_layout)
         sb_layout.addWidget(limits_group)
 
         sb_layout.addStretch()
         layout.addWidget(sidebar)
 
         # -- Plot area --
-        pg.setConfigOptions(antialias=True, background="#1a1a1a", foreground="#d4d4d4")
+        ui.configure_pyqtgraph(pg)
         self._plot_widget = pg.PlotWidget()
         self._plot_widget.showGrid(x=True, y=True, alpha=0.15)
         self._plot_widget.setLabel("bottom", "Elapsed", units="s")
@@ -191,21 +170,21 @@ class LogViewerWindow(QMainWindow):
         layout.addWidget(self._plot_widget, stretch=1)
 
         # Crosshair
-        self._vline = pg.InfiniteLine(angle=90, pen=pg.mkPen("#888", width=1, style=Qt.PenStyle.DotLine))
-        self._hline = pg.InfiniteLine(angle=0, pen=pg.mkPen("#888", width=1, style=Qt.PenStyle.DotLine))
+        self._vline = pg.InfiniteLine(angle=90, pen=pg.mkPen(ui.Theme.TEXT_MUTED, width=1, style=Qt.PenStyle.DotLine))
+        self._hline = pg.InfiniteLine(angle=0, pen=pg.mkPen(ui.Theme.TEXT_MUTED, width=1, style=Qt.PenStyle.DotLine))
         self._plot_widget.addItem(self._vline, ignoreBounds=True)
         self._plot_widget.addItem(self._hline, ignoreBounds=True)
 
-        self._cursor_label = pg.TextItem(anchor=(0, 1), color="#ccc")
+        self._cursor_label = pg.TextItem(anchor=(0, 1), color=ui.Theme.TEXT_WHITE)
         self._plot_widget.addItem(self._cursor_label, ignoreBounds=True)
 
         # Reference marker (click to pin)
         self._ref_point: tuple[float, float] | None = None
         self._ref_marker = pg.ScatterPlotItem(
-            [], [], pen=pg.mkPen("#ff0"), brush=pg.mkBrush("#ff0"), size=8, symbol="+"
+            [], [], pen=pg.mkPen(ui.Theme.WARNING), brush=pg.mkBrush(ui.Theme.WARNING), size=8, symbol="+"
         )
         self._plot_widget.addItem(self._ref_marker, ignoreBounds=True)
-        self._ref_label = pg.TextItem(anchor=(0, 0), color="#ff0")
+        self._ref_label = pg.TextItem(anchor=(0, 0), color=ui.Theme.WARNING)
         self._plot_widget.addItem(self._ref_label, ignoreBounds=True)
 
         self._plot_widget.scene().sigMouseMoved.connect(self._on_mouse_moved)
@@ -378,11 +357,8 @@ class LogViewerWindow(QMainWindow):
                 continue
             self._logs.append((name, path, df, n_ch))
 
-            cb = QCheckBox(name)
-            cb.setChecked(True)
+            cb = ui.check_box(name, checked=True)
             cb.stateChanged.connect(self._on_filter_changed)
-            color = LOG_COLORS[(len(self._logs) - 1) % len(LOG_COLORS)]
-            cb.setStyleSheet(f"QCheckBox {{ color: {color}; }}")
             self._logs_layout.addWidget(cb)
             self._log_cbs.append(cb)
 

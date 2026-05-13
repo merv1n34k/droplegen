@@ -18,18 +18,14 @@ Layout:
   | Status: Connected (simulated) | 3P + 3S                       |
   +---------------------------------------------------------------+
 """
-from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QFont
+from PySide6.QtCore import QTimer
 from PySide6.QtWidgets import (
-    QCheckBox,
-    QHBoxLayout,
     QMainWindow,
-    QPushButton,
-    QSplitter,
     QVBoxLayout,
     QWidget,
-    QLabel,
 )
+
+import dropletui as ui
 
 from droplegen.controller import Controller
 from droplegen.config import UI_REFRESH_INTERVAL_MS, SENSOR_CHANNEL_NAMES
@@ -37,7 +33,6 @@ from droplegen.ui.panels.control_panel import ControlPanel
 from droplegen.ui.panels.monitor_panel import MonitorPanel
 from droplegen.ui.panels.pipeline_panel import PipelinePanel
 from droplegen.ui.panels.plot_panel import PlotPanel
-from droplegen.ui.theme import button_qss, text_qss
 
 
 class MainWindow(QMainWindow):
@@ -51,97 +46,75 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(6, 6, 6, 0)
-        root_layout.setSpacing(6)
+        root_layout.setContentsMargins(ui.Theme.WINDOW_PADDING, ui.Theme.WINDOW_PADDING, ui.Theme.WINDOW_PADDING, 0)
+        root_layout.setSpacing(ui.Theme.SPACE_2)
 
         # -- Top toolbar --
-        toolbar = QWidget()
-        toolbar.setMinimumHeight(44)
-        tb_layout = QHBoxLayout(toolbar)
-        tb_layout.setContentsMargins(6, 4, 6, 4)
-        tb_layout.setSpacing(6)
+        self._sim_cb = ui.check_box("Simulated", checked=True)
 
-        title = QLabel("Droplegen")
-        title.setFont(QFont("", 16, QFont.Weight.Bold))
-        tb_layout.addWidget(title)
-
-        tb_layout.addSpacing(12)
-
-        self._sim_cb = QCheckBox("Simulated")
-        self._sim_cb.setChecked(True)
-        tb_layout.addWidget(self._sim_cb)
-
-        tb_layout.addSpacing(8)
-
-        self._connect_btn = QPushButton("Connect")
+        self._connect_btn = ui.button("Connect", variant="success")
         self._connect_btn.clicked.connect(self._on_connect)
-        tb_layout.addWidget(self._connect_btn)
 
-        self._disconnect_btn = QPushButton("Disconnect")
+        self._disconnect_btn = ui.button("Disconnect", variant="danger")
         self._disconnect_btn.setEnabled(False)
         self._disconnect_btn.clicked.connect(self._on_disconnect)
-        tb_layout.addWidget(self._disconnect_btn)
 
-        tb_layout.addSpacing(8)
-
-        self._rec_btn = QPushButton("Record")
+        self._rec_btn = ui.button("Record")
         self._rec_btn.setEnabled(False)
         self._rec_btn.clicked.connect(self._toggle_recording)
-        tb_layout.addWidget(self._rec_btn)
 
-        self._save_settings_btn = QPushButton("Save Settings")
+        self._save_settings_btn = ui.button("Save Settings")
         self._save_settings_btn.setEnabled(False)
         self._save_settings_btn.clicked.connect(self._on_save_settings)
-        tb_layout.addWidget(self._save_settings_btn)
 
-        self._examine_logs_btn = QPushButton("Examine Logs")
+        self._examine_logs_btn = ui.button("Examine Logs")
         self._examine_logs_btn.clicked.connect(self._on_examine_logs)
-        tb_layout.addWidget(self._examine_logs_btn)
 
-        tb_layout.addStretch()
-
-        self._estop_btn = QPushButton("E-STOP")
-        self._estop_btn.setFont(QFont("", 13, QFont.Weight.Bold))
-        self._estop_btn.setStyleSheet(button_qss("danger"))
+        self._estop_btn = ui.button("E-STOP", variant="danger", size="large")
         self._estop_btn.clicked.connect(self._on_emergency_stop)
-        tb_layout.addWidget(self._estop_btn)
+
+        toolbar = ui.toolbar(
+            "Droplegen",
+            self._sim_cb,
+            self._connect_btn,
+            self._disconnect_btn,
+            self._rec_btn,
+            self._save_settings_btn,
+            self._examine_logs_btn,
+        )
+        toolbar.layout().addWidget(self._estop_btn)
 
         root_layout.addWidget(toolbar)
 
         # -- Body: splitters --
         # Vertical splitter: top panels | bottom plots
-        body_splitter = QSplitter(Qt.Orientation.Vertical)
-
         # Top row: horizontal splitter -> control | (pipeline / monitor)
-        top_splitter = QSplitter(Qt.Orientation.Horizontal)
-
         self.control_panel = ControlPanel(controller)
-        top_splitter.addWidget(self.control_panel)
 
         # Right column: vertical splitter -> pipeline | monitor
-        right_splitter = QSplitter(Qt.Orientation.Vertical)
-
         self.pipeline_panel = PipelinePanel(controller)
-        right_splitter.addWidget(self.pipeline_panel)
-
         self.monitor_panel = MonitorPanel()
-        right_splitter.addWidget(self.monitor_panel)
-
-        right_splitter.setStretchFactor(0, 1)
-        right_splitter.setStretchFactor(1, 1)
-
-        top_splitter.addWidget(right_splitter)
-        top_splitter.setStretchFactor(0, 2)
-        top_splitter.setStretchFactor(1, 3)
-
-        body_splitter.addWidget(top_splitter)
+        right_splitter = ui.vertical_splitter(
+            self.pipeline_panel,
+            self.monitor_panel,
+            stretch=(1, 1),
+            collapse_index=1,
+        )
+        top_splitter = ui.horizontal_splitter(
+            self.control_panel,
+            right_splitter,
+            stretch=(2, 3),
+            collapse_index=0,
+        )
 
         # Bottom: plot panel
         self.plot_panel = PlotPanel()
-        body_splitter.addWidget(self.plot_panel)
-
-        body_splitter.setStretchFactor(0, 3)
-        body_splitter.setStretchFactor(1, 2)
+        body_splitter = ui.vertical_splitter(
+            top_splitter,
+            self.plot_panel,
+            stretch=(3, 2),
+            collapse_index=1,
+        )
 
         root_layout.addWidget(body_splitter, stretch=1)
 
@@ -183,12 +156,10 @@ class MainWindow(QMainWindow):
 
             mode = "simulated" if state.simulated else "hardware"
             self._check_sensor_corrections()
-            self._status_bar.setStyleSheet(text_qss("success"))
             self._status_bar.showMessage(
                 f"Connected ({mode})  |  {n_p} pressure + {n_s} sensor channels"
             )
         except Exception as e:
-            self._status_bar.setStyleSheet(text_qss("danger"))
             self._status_bar.showMessage(f"Connection error: {e}")
 
     def _on_disconnect(self) -> None:
@@ -201,10 +172,8 @@ class MainWindow(QMainWindow):
             self._save_settings_btn.setEnabled(False)
             self.control_panel.clear_channels()
             self.plot_panel.clear()
-            self._status_bar.setStyleSheet(text_qss("muted"))
             self._status_bar.showMessage("Disconnected")
         except Exception as e:
-            self._status_bar.setStyleSheet(text_qss("danger"))
             self._status_bar.showMessage(f"Disconnect error: {e}")
 
     def _toggle_recording(self) -> None:
@@ -228,7 +197,6 @@ class MainWindow(QMainWindow):
 
     def _on_emergency_stop(self) -> None:
         self._ctrl.emergency_stop()
-        self._status_bar.setStyleSheet(text_qss("danger"))
         self._status_bar.showMessage("EMERGENCY STOP - all pressures set to 0")
 
     def _check_sensor_corrections(self) -> None:
@@ -241,7 +209,6 @@ class MainWindow(QMainWindow):
                 names.append(SENSOR_CHANNEL_NAMES[idx])
             else:
                 names.append(f"Sensor {idx}")
-        self._status_bar.setStyleSheet(text_qss("warning"))
         self._status_bar.showMessage(
             f"Warning: no flow correction applied to {', '.join(names)}"
         )

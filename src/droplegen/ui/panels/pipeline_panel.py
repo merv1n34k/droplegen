@@ -2,27 +2,29 @@
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFont
 from PySide6.QtWidgets import (
-    QComboBox,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
     QProgressBar,
-    QPushButton,
     QScrollArea,
     QVBoxLayout,
     QWidget,
 )
 
+import dropletui as ui
+
 from droplegen.config import PIPELINES, SENSOR_CHANNEL_NAMES, Step
 from droplegen.controller import Controller
 from droplegen.pipeline.engine import PipelineState, PipelineEvent
 from droplegen.pipeline.steps import StepStatus
-from droplegen.ui.theme import button_qss
 
 
 TRIGGER_TYPES = ["time", "volume", "threshold", "condition"]
 ON_COMPLETE_OPTIONS = ["hold", "zero", "revert"]
+
+
+def _label(text: str, *, kind: str = "muted") -> QLabel:
+    return ui.status_label(text, kind=kind)
 
 
 class StepBlock(QWidget):
@@ -38,69 +40,46 @@ class StepBlock(QWidget):
         main_layout.setContentsMargins(0, 0, 0, 0)
         main_layout.setSpacing(0)
 
-        self._group = QGroupBox()
-        self._group.setStyleSheet(
-            "QGroupBox { border: 1px solid #333; border-radius: 4px; "
-            "margin-top: 0px; padding: 6px 8px; }"
-        )
-        group_layout = QVBoxLayout(self._group)
-        group_layout.setContentsMargins(8, 8, 8, 6)
-        group_layout.setSpacing(4)
+        self._group, group_layout = ui.section("")
 
         # --- Header row: index, name, on_complete, remove ---
         header = QHBoxLayout()
         header.setSpacing(6)
         idx_label = QLabel(f"{step_idx + 1}.")
         idx_label.setFont(QFont("", 12, QFont.Weight.Bold))
-        idx_label.setFixedWidth(24)
         header.addWidget(idx_label)
         self._idx_label = idx_label
 
-        self._name_input = QLineEdit(step.name if step else "")
+        self._name_input = ui.line_edit(step.name if step else "", placeholder="Step name")
         self._name_input.setPlaceholderText("Step name")
-        self._name_input.setMaximumWidth(180)
         header.addWidget(self._name_input)
 
         header.addStretch()
 
-        repeat_lbl = QLabel("Rep:")
-        repeat_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        repeat_lbl = _label("Rep:")
         header.addWidget(repeat_lbl)
-        self._repeat_input = QLineEdit()
-        self._repeat_input.setFixedWidth(28)
-        self._repeat_input.setPlaceholderText("1")
+        self._repeat_input = ui.line_edit(placeholder="1")
         if step and step.repeat > 1:
             self._repeat_input.setText(str(step.repeat))
         header.addWidget(self._repeat_input)
 
-        group_lbl = QLabel("Grp:")
-        group_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        group_lbl = _label("Grp:")
         header.addWidget(group_lbl)
-        self._group_input = QLineEdit()
-        self._group_input.setFixedWidth(28)
+        self._group_input = ui.line_edit()
         self._group_input.setPlaceholderText("")
         if step and step.group:
             self._group_input.setText(step.group)
         header.addWidget(self._group_input)
 
-        after_lbl = QLabel("After:")
-        after_lbl.setStyleSheet("font-size: 11px; color: gray;")
+        after_lbl = _label("After:")
         header.addWidget(after_lbl)
-        self._on_complete_combo = QComboBox()
-        self._on_complete_combo.addItems(ON_COMPLETE_OPTIONS)
-        self._on_complete_combo.setFixedWidth(80)
+        self._on_complete_combo = ui.combo_box(ON_COMPLETE_OPTIONS)
         if step:
             idx = ON_COMPLETE_OPTIONS.index(step.on_complete) if step.on_complete in ON_COMPLETE_OPTIONS else 0
             self._on_complete_combo.setCurrentIndex(idx)
         header.addWidget(self._on_complete_combo)
 
-        remove_btn = QPushButton("X")
-        remove_btn.setFixedWidth(28)
-        remove_btn.setStyleSheet(
-            "QPushButton { background: #3a2020; border: 1px solid #552222; "
-            "color: #cc4444; font-weight: bold; border-radius: 3px; padding: 0; }"
-            "QPushButton:hover { background: #552222; color: #ff4444; }"
-        )
+        remove_btn = ui.button("X", variant="danger", size="inline")
         remove_btn.clicked.connect(self._remove_clicked)
         header.addWidget(remove_btn)
         self._remove_btn = remove_btn
@@ -111,21 +90,16 @@ class StepBlock(QWidget):
         for ch_idx, ch_name in enumerate(SENSOR_CHANNEL_NAMES):
             row = QHBoxLayout()
             row.setSpacing(4)
-            lbl = QLabel(f"  {ch_name}:")
-            lbl.setStyleSheet("font-size: 11px;")
-            lbl.setFixedWidth(120)
+            lbl = _label(f"  {ch_name}:", kind="default")
             row.addWidget(lbl)
 
-            inp = QLineEdit()
-            inp.setFixedWidth(80)
-            inp.setPlaceholderText("0")
+            inp = ui.line_edit(placeholder="0")
             if step and ch_idx in step.sensor_setpoints:
                 val = step.sensor_setpoints[ch_idx]
                 inp.setText(f"{val:g}")
             row.addWidget(inp)
 
-            unit = QLabel("\u00b5l/min")
-            unit.setStyleSheet("font-size: 10px; color: gray;")
+            unit = _label("\u00b5l/min")
             row.addWidget(unit)
             row.addStretch()
             self._flow_inputs.append(inp)
@@ -134,14 +108,10 @@ class StepBlock(QWidget):
         # --- Trigger row ---
         trigger_row = QHBoxLayout()
         trigger_row.setSpacing(6)
-        trig_lbl = QLabel("  Trigger:")
-        trig_lbl.setStyleSheet("font-size: 11px;")
-        trig_lbl.setFixedWidth(120)
+        trig_lbl = _label("  Trigger:", kind="default")
         trigger_row.addWidget(trig_lbl)
 
-        self._trigger_combo = QComboBox()
-        self._trigger_combo.addItems(TRIGGER_TYPES)
-        self._trigger_combo.setFixedWidth(120)
+        self._trigger_combo = ui.combo_box(TRIGGER_TYPES)
         if step:
             idx = TRIGGER_TYPES.index(step.trigger_type) if step.trigger_type in TRIGGER_TYPES else 0
             self._trigger_combo.setCurrentIndex(idx)
@@ -163,12 +133,9 @@ class StepBlock(QWidget):
         # --- Confirmation row (non-empty = ask before running) ---
         confirm_row = QHBoxLayout()
         confirm_row.setSpacing(6)
-        confirm_lbl = QLabel("  Confirm:")
-        confirm_lbl.setStyleSheet("font-size: 11px;")
-        confirm_lbl.setFixedWidth(120)
+        confirm_lbl = _label("  Confirm:", kind="default")
         confirm_row.addWidget(confirm_lbl)
-        self._confirm_msg_input = QLineEdit()
-        self._confirm_msg_input.setPlaceholderText("empty = no confirmation")
+        self._confirm_msg_input = ui.line_edit(placeholder="empty = no confirmation")
         if step and step.confirm_message:
             self._confirm_msg_input.setText(step.confirm_message)
         confirm_row.addWidget(self._confirm_msg_input, stretch=1)
@@ -177,16 +144,15 @@ class StepBlock(QWidget):
         # --- Progress bar + status ---
         status_row = QHBoxLayout()
         status_row.setSpacing(6)
+        self._status_row = status_row
         self._progress = QProgressBar()
-        self._progress.setFixedHeight(8)
         self._progress.setTextVisible(False)
         self._progress.setRange(0, 1000)
         self._progress.setValue(0)
         status_row.addWidget(self._progress, stretch=1)
 
-        self._status_label = QLabel("PENDING")
-        self._status_label.setStyleSheet("color: gray; font-size: 10px;")
-        self._status_label.setFixedWidth(70)
+        self._status_label = ui.status_label("PENDING")
+        self._status_kind = "muted"
         self._status_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         status_row.addWidget(self._status_label)
         group_layout.addLayout(status_row)
@@ -204,105 +170,77 @@ class StepBlock(QWidget):
         params = step.trigger_params if step else {}
 
         spacer_lbl = QLabel("")
-        spacer_lbl.setFixedWidth(120)
         self._params_layout.addWidget(spacer_lbl)
 
         if trigger_type == "time":
-            lbl = QLabel("Duration:")
-            lbl.setStyleSheet("font-size: 11px;")
+            lbl = _label("Duration:", kind="default")
             self._params_layout.addWidget(lbl)
-            self._duration_input = QLineEdit()
-            self._duration_input.setFixedWidth(80)
-            self._duration_input.setPlaceholderText("0")
+            self._duration_input = ui.line_edit(placeholder="0")
             if params.get("duration_s") is not None:
                 self._duration_input.setText(f"{params['duration_s']:g}")
             self._params_layout.addWidget(self._duration_input)
-            unit = QLabel("s")
-            unit.setStyleSheet("font-size: 10px; color: gray;")
+            unit = _label("s")
             self._params_layout.addWidget(unit)
 
         elif trigger_type == "volume":
-            lbl = QLabel("Sensor:")
-            lbl.setStyleSheet("font-size: 11px;")
+            lbl = _label("Sensor:", kind="default")
             self._params_layout.addWidget(lbl)
-            self._vol_sensor_input = QLineEdit()
-            self._vol_sensor_input.setFixedWidth(40)
+            self._vol_sensor_input = ui.line_edit()
             self._vol_sensor_input.setText(str(params.get("sensor_index", 0)))
             self._params_layout.addWidget(self._vol_sensor_input)
-            lbl2 = QLabel("Target:")
-            lbl2.setStyleSheet("font-size: 11px;")
+            lbl2 = _label("Target:", kind="default")
             self._params_layout.addWidget(lbl2)
-            self._vol_target_input = QLineEdit()
-            self._vol_target_input.setFixedWidth(80)
+            self._vol_target_input = ui.line_edit()
             if params.get("target_volume_ul") is not None:
                 self._vol_target_input.setText(f"{params['target_volume_ul']:g}")
             self._params_layout.addWidget(self._vol_target_input)
-            unit = QLabel("\u00b5l")
-            unit.setStyleSheet("font-size: 10px; color: gray;")
+            unit = _label("\u00b5l")
             self._params_layout.addWidget(unit)
 
         elif trigger_type == "threshold":
-            lbl = QLabel("Sensor:")
-            lbl.setStyleSheet("font-size: 11px;")
+            lbl = _label("Sensor:", kind="default")
             self._params_layout.addWidget(lbl)
-            self._thresh_sensor_input = QLineEdit()
-            self._thresh_sensor_input.setFixedWidth(40)
+            self._thresh_sensor_input = ui.line_edit()
             self._thresh_sensor_input.setText(str(params.get("sensor_index", 0)))
             self._params_layout.addWidget(self._thresh_sensor_input)
-            lbl2 = QLabel("Target:")
-            lbl2.setStyleSheet("font-size: 11px;")
+            lbl2 = _label("Target:", kind="default")
             self._params_layout.addWidget(lbl2)
-            self._thresh_target_input = QLineEdit()
-            self._thresh_target_input.setFixedWidth(60)
+            self._thresh_target_input = ui.line_edit()
             if params.get("target") is not None:
                 self._thresh_target_input.setText(f"{params['target']:g}")
             self._params_layout.addWidget(self._thresh_target_input)
-            lbl3 = QLabel("\u00b1")
-            lbl3.setStyleSheet("font-size: 11px;")
+            lbl3 = _label("\u00b1", kind="default")
             self._params_layout.addWidget(lbl3)
-            self._thresh_tol_input = QLineEdit()
-            self._thresh_tol_input.setFixedWidth(40)
+            self._thresh_tol_input = ui.line_edit()
             self._thresh_tol_input.setText(f"{params.get('tolerance_pct', 5):g}")
             self._params_layout.addWidget(self._thresh_tol_input)
-            lbl4 = QLabel("% for")
-            lbl4.setStyleSheet("font-size: 11px;")
+            lbl4 = _label("% for", kind="default")
             self._params_layout.addWidget(lbl4)
-            self._thresh_dur_input = QLineEdit()
-            self._thresh_dur_input.setFixedWidth(40)
+            self._thresh_dur_input = ui.line_edit()
             self._thresh_dur_input.setText(f"{params.get('stable_duration_s', 10):g}")
             self._params_layout.addWidget(self._thresh_dur_input)
-            lbl5 = QLabel("s")
-            lbl5.setStyleSheet("font-size: 10px; color: gray;")
+            lbl5 = _label("s")
             self._params_layout.addWidget(lbl5)
 
         elif trigger_type == "condition":
-            lbl = QLabel("Sensor:")
-            lbl.setStyleSheet("font-size: 11px;")
+            lbl = _label("Sensor:", kind="default")
             self._params_layout.addWidget(lbl)
-            self._cond_sensor_input = QLineEdit()
-            self._cond_sensor_input.setFixedWidth(40)
+            self._cond_sensor_input = ui.line_edit()
             self._cond_sensor_input.setText(str(params.get("sensor_index", 0)))
             self._params_layout.addWidget(self._cond_sensor_input)
-            lbl2 = QLabel(">=")
-            lbl2.setStyleSheet("font-size: 11px;")
+            lbl2 = _label(">=", kind="default")
             self._params_layout.addWidget(lbl2)
-            self._cond_min_input = QLineEdit()
-            self._cond_min_input.setFixedWidth(60)
-            self._cond_min_input.setPlaceholderText("min")
+            self._cond_min_input = ui.line_edit(placeholder="min")
             if params.get("min_value") is not None:
                 self._cond_min_input.setText(f"{params['min_value']:g}")
             self._params_layout.addWidget(self._cond_min_input)
-            lbl3 = QLabel("<=")
-            lbl3.setStyleSheet("font-size: 11px;")
+            lbl3 = _label("<=", kind="default")
             self._params_layout.addWidget(lbl3)
-            self._cond_max_input = QLineEdit()
-            self._cond_max_input.setFixedWidth(60)
-            self._cond_max_input.setPlaceholderText("max")
+            self._cond_max_input = ui.line_edit(placeholder="max")
             if params.get("max_value") is not None:
                 self._cond_max_input.setText(f"{params['max_value']:g}")
             self._params_layout.addWidget(self._cond_max_input)
-            unit = QLabel("µl/min")
-            unit.setStyleSheet("font-size: 10px; color: gray;")
+            unit = _label("µl/min")
             self._params_layout.addWidget(unit)
 
         self._params_layout.addStretch()
@@ -403,16 +341,25 @@ class StepBlock(QWidget):
         )
 
     def set_status(self, status: StepStatus, progress: float = 0.0) -> None:
-        colors = {
-            StepStatus.PENDING: "gray",
-            StepStatus.RUNNING: "#f39c12",
-            StepStatus.COMPLETED: "#27ae60",
-            StepStatus.SKIPPED: "#7f8c8d",
-            StepStatus.ERROR: "#e74c3c",
+        kinds = {
+            StepStatus.PENDING: "muted",
+            StepStatus.RUNNING: "warning",
+            StepStatus.COMPLETED: "success",
+            StepStatus.SKIPPED: "subtle",
+            StepStatus.ERROR: "danger",
         }
-        color = colors.get(status, "gray")
-        self._status_label.setText(status.value.upper())
-        self._status_label.setStyleSheet(f"color: {color}; font-size: 10px;")
+        text = status.value.upper()
+        kind = kinds.get(status, "muted")
+        if self._status_kind == kind:
+            self._status_label.setText(text)
+            self._progress.setValue(int(progress * 1000))
+            return
+        replacement = ui.status_label(text, kind=kind)
+        replacement.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self._status_row.replaceWidget(self._status_label, replacement)
+        self._status_label.deleteLater()
+        self._status_label = replacement
+        self._status_kind = kind
         self._progress.setValue(int(progress * 1000))
 
     def set_editing(self, enabled: bool) -> None:
@@ -447,17 +394,17 @@ class PipelinePanel(QWidget):
         header_lbl.setFont(QFont("", 14, QFont.Weight.Bold))
         header_row.addWidget(header_lbl)
         header_row.addStretch()
-        self._state_label = QLabel("IDLE")
-        self._state_label.setStyleSheet("color: gray; font-size: 12px;")
+        self._state_label = ui.status_label("IDLE")
+        self._state_kind = "muted"
         header_row.addWidget(self._state_label)
+        self._header_row = header_row
         layout.addLayout(header_row)
 
         # Pipeline selector
         selector_row = QHBoxLayout()
-        sel_lbl = QLabel("Template:")
-        sel_lbl.setStyleSheet("font-size: 12px;")
+        sel_lbl = _label("Template:", kind="default")
         selector_row.addWidget(sel_lbl)
-        self._pipeline_combo = QComboBox()
+        self._pipeline_combo = ui.combo_box()
         self._pipeline_combo.currentTextChanged.connect(self._on_pipeline_changed)
         selector_row.addWidget(self._pipeline_combo, stretch=1)
         layout.addLayout(selector_row)
@@ -465,29 +412,27 @@ class PipelinePanel(QWidget):
         # Buttons
         btn_row = QHBoxLayout()
 
-        self._start_btn = QPushButton("Start")
+        self._start_btn = ui.button("Start", variant="success")
         self._start_btn.clicked.connect(self._on_start)
         btn_row.addWidget(self._start_btn)
 
-        self._pause_btn = QPushButton("Pause")
+        self._pause_btn = ui.button("Pause")
         self._pause_btn.setEnabled(False)
         self._pause_btn.clicked.connect(self._on_pause)
         btn_row.addWidget(self._pause_btn)
 
-        self._stop_btn = QPushButton("Stop")
+        self._stop_btn = ui.button("Stop", variant="danger")
         self._stop_btn.setEnabled(False)
-        self._stop_btn.setStyleSheet(button_qss("danger"))
         self._stop_btn.clicked.connect(self._on_stop)
         btn_row.addWidget(self._stop_btn)
 
-        self._skip_btn = QPushButton("Skip")
+        self._skip_btn = ui.button("Skip")
         self._skip_btn.setEnabled(False)
         self._skip_btn.clicked.connect(self._on_skip)
         btn_row.addWidget(self._skip_btn)
 
-        self._proceed_btn = QPushButton("Proceed")
+        self._proceed_btn = ui.button("Proceed", variant="success")
         self._proceed_btn.setEnabled(False)
-        self._proceed_btn.setStyleSheet(button_qss("success"))
         self._proceed_btn.clicked.connect(self._on_proceed)
         btn_row.addWidget(self._proceed_btn)
 
@@ -496,26 +441,21 @@ class PipelinePanel(QWidget):
 
         # Save row (next to Proceed per user request)
         save_row = QHBoxLayout()
-        self._save_name_input = QLineEdit()
-        self._save_name_input.setPlaceholderText("Pipeline name")
+        self._save_name_input = ui.line_edit(placeholder="Pipeline name")
         save_row.addWidget(self._save_name_input, stretch=1)
-        self._save_btn = QPushButton("Save")
+        self._save_btn = ui.button("Save", variant="primary")
         self._save_btn.clicked.connect(self._on_save)
         save_row.addWidget(self._save_btn)
         layout.addLayout(save_row)
 
         # Confirmation message
-        self._confirm_label = QLabel("")
-        self._confirm_label.setStyleSheet(
-            "color: #f39c12; font-size: 12px; padding: 4px; "
-            "border: 1px solid #f39c12; border-radius: 3px;"
-        )
+        self._confirm_label = ui.status_label("", kind="warning", small=False)
         self._confirm_label.setWordWrap(True)
         self._confirm_label.hide()
         layout.addWidget(self._confirm_label)
 
         # Add step button
-        self._add_step_btn = QPushButton("+ Add Step")
+        self._add_step_btn = ui.button("+ Add Step", variant="primary")
         self._add_step_btn.clicked.connect(self._on_add_step)
         layout.addWidget(self._add_step_btn)
 
@@ -633,17 +573,24 @@ class PipelinePanel(QWidget):
             self._pipeline_combo.setCurrentIndex(idx)
 
     def update_from_event(self, event: PipelineEvent) -> None:
-        state_colors = {
-            PipelineState.IDLE: "gray",
-            PipelineState.RUNNING: "#27ae60",
-            PipelineState.PAUSED: "#f39c12",
-            PipelineState.STOPPING: "#e67e22",
-            PipelineState.COMPLETED: "#2980b9",
-            PipelineState.ERROR: "#e74c3c",
+        state_kinds = {
+            PipelineState.IDLE: "muted",
+            PipelineState.RUNNING: "success",
+            PipelineState.PAUSED: "warning",
+            PipelineState.STOPPING: "warning",
+            PipelineState.COMPLETED: "primary",
+            PipelineState.ERROR: "danger",
         }
-        color = state_colors.get(event.state, "gray")
-        self._state_label.setText(event.state.value.upper())
-        self._state_label.setStyleSheet(f"color: {color}; font-size: 12px;")
+        text = event.state.value.upper()
+        kind = state_kinds.get(event.state, "muted")
+        if self._state_kind == kind:
+            self._state_label.setText(text)
+        else:
+            replacement = ui.status_label(text, kind=kind)
+            self._header_row.replaceWidget(self._state_label, replacement)
+            self._state_label.deleteLater()
+            self._state_label = replacement
+            self._state_kind = kind
 
         running = event.state in (PipelineState.RUNNING, PipelineState.PAUSED)
         self._start_btn.setEnabled(not running)

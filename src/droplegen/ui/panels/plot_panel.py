@@ -3,7 +3,9 @@ from collections import deque
 
 import numpy as np
 import pyqtgraph as pg
-from PySide6.QtWidgets import QDoubleSpinBox, QHBoxLayout, QLabel, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QVBoxLayout, QWidget
+
+import dropletui as ui
 
 from droplegen.backend.acquisition import DataSnapshot
 from droplegen.utils import bin_arrays
@@ -12,7 +14,7 @@ from droplegen.utils import bin_arrays
 _MAX_SAMPLES = 6000
 _VISIBLE_WINDOW_S = 60.0
 
-_COLORS = ["#3498db", "#e74c3c", "#2ecc71"]
+_COLORS = [ui.Theme.ACCENT, ui.Theme.DANGER_HOVER, ui.Theme.SUCCESS_HOVER]
 _LABELS = ["Oil", "Cells", "Beads"]
 
 
@@ -21,7 +23,8 @@ class LivePlot(pg.PlotWidget):
 
     def __init__(self, title: str, y_unit: str, parent=None):
         super().__init__(parent, title=title, labels={"left": y_unit, "bottom": "s"})
-        self.setBackground("#1a1a1a")
+        ui.configure_pyqtgraph(pg)
+        self.setBackground(ui.Theme.BG_DARK)
         self.showGrid(x=True, y=True, alpha=0.15)
         self.setMouseEnabled(x=True, y=False)
         self.enableAutoRange(axis="y")
@@ -111,14 +114,14 @@ class PlotPanel(QWidget):
         toolbar = QHBoxLayout()
         toolbar.setContentsMargins(4, 0, 4, 0)
         toolbar.addWidget(QLabel("Bin:"))
-        self._bin_spin = QDoubleSpinBox()
-        self._bin_spin.setRange(0.0, 10.0)
-        self._bin_spin.setSingleStep(0.1)
-        self._bin_spin.setDecimals(2)
-        self._bin_spin.setSuffix(" s")
+        self._bin_spin = ui.double_box(
+            minimum=0.0,
+            maximum=10.0,
+            step=0.1,
+            decimals=2,
+            suffix=" s",
+        )
         self._bin_spin.setSpecialValueText("off")
-        self._bin_spin.setValue(0.0)
-        self._bin_spin.setFixedWidth(80)
         self._bin_spin.setToolTip("Merge points into time bins (0 = raw data)")
         self._bin_spin.valueChanged.connect(lambda: self.refresh())
         toolbar.addWidget(self._bin_spin)
