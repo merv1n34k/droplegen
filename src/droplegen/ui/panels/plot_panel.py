@@ -107,12 +107,14 @@ class PlotPanel(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.setSpacing(2)
+        root.setContentsMargins(*ui.box_padding("none"))
+        root.setSpacing(ui.spacing("control"))
 
         # Toolbar row
         toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(4, 0, 4, 0)
+        toolbar.setContentsMargins(
+            *ui.box_padding((ui.Theme.SPACE_1, 0, ui.Theme.SPACE_1, 0))
+        )
         toolbar.addWidget(QLabel("Bin:"))
         self._bin_spin = ui.double_box(
             minimum=0.0,
@@ -130,8 +132,8 @@ class PlotPanel(QWidget):
 
         # Plots
         plots = QHBoxLayout()
-        plots.setContentsMargins(0, 0, 0, 0)
-        plots.setSpacing(4)
+        plots.setContentsMargins(*ui.box_padding("none"))
+        plots.setSpacing(ui.spacing("control"))
         self._pressure = LivePlot("Pressure", "mbar")
         plots.addWidget(self._pressure)
         self._flow = LivePlot("Flow", "µL/min")

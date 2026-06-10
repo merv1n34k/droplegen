@@ -13,7 +13,6 @@ from PySide6.QtWidgets import (
     QCheckBox,
     QFileDialog,
     QHBoxLayout,
-    QLabel,
     QMainWindow,
     QScrollArea,
     QWidget,
@@ -77,12 +76,9 @@ class LogViewerWindow(QMainWindow):
         self.setCentralWidget(central)
         layout = QHBoxLayout(central)
         layout.setContentsMargins(
-            ui.Theme.WINDOW_PADDING,
-            ui.Theme.WINDOW_PADDING,
-            ui.Theme.WINDOW_PADDING,
-            ui.Theme.WINDOW_PADDING,
+            *ui.box_padding("window")
         )
-        layout.setSpacing(ui.Theme.SPACE_2)
+        layout.setSpacing(ui.spacing("group"))
 
         # -- Left sidebar --
         sidebar, sb_layout = ui.side_panel(maximum_width=220)
@@ -123,21 +119,14 @@ class LogViewerWindow(QMainWindow):
         self._limit_spins = {}
         for axis, label in [("x", "X"), ("y", "Y")]:
             for bound in ["min", "max"]:
-                row = QHBoxLayout()
-                row.setSpacing(4)
-                row.addWidget(QLabel(f"{label} {bound}"))
                 spin = ui.double_box(minimum=-1e6, maximum=1e6, decimals=1)
                 spin.setSpecialValueText("auto")
                 spin.setValue(spin.minimum())  # show "auto"
                 spin.editingFinished.connect(self._apply_limits)
-                row.addWidget(spin)
-                lim_layout.addLayout(row)
+                lim_layout.addWidget(ui.control_row(f"{label} {bound}", spin))
                 self._limit_spins[f"{axis}_{bound}"] = spin
 
         # Bin size
-        bin_row = QHBoxLayout()
-        bin_row.setSpacing(4)
-        bin_row.addWidget(QLabel("Bin"))
         self._bin_spin = ui.double_box(
             minimum=0.0,
             maximum=60.0,
@@ -148,8 +137,7 @@ class LogViewerWindow(QMainWindow):
         self._bin_spin.setSpecialValueText("off")
         self._bin_spin.setToolTip("Merge points into time bins (0 = raw)")
         self._bin_spin.valueChanged.connect(self._on_filter_changed)
-        bin_row.addWidget(self._bin_spin)
-        lim_layout.addLayout(bin_row)
+        lim_layout.addWidget(ui.control_row("Bin", self._bin_spin))
 
         reset_btn = ui.button("Reset Limits")
         reset_btn.clicked.connect(self._reset_limits)

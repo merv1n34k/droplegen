@@ -21,8 +21,17 @@ class MonitorPanel(QWidget):
         self._rows: list[dict] = []
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(
+            *ui.box_padding(
+                (
+                    ui.Theme.SPACE_2,
+                    ui.Theme.SPACE_1,
+                    ui.Theme.SPACE_2,
+                    ui.Theme.SPACE_1,
+                )
+            )
+        )
+        layout.setSpacing(ui.spacing("control"))
 
         # Header row
         header_row = QHBoxLayout()
@@ -48,7 +57,7 @@ class MonitorPanel(QWidget):
 
         # Table
         self._table = QGridLayout()
-        self._table.setSpacing(4)
+        self._table.setSpacing(ui.spacing("control"))
         col_headers = ["Channel", "Value", "Mean", "Std", "Min", "Max", "Volume", "Stable"]
         col_stretches = [3, 2, 2, 2, 2, 2, 2, 1]
         col_min_widths = [90, 55, 55, 45, 55, 55, 55, 40]

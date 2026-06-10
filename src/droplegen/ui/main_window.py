@@ -46,8 +46,17 @@ class MainWindow(QMainWindow):
         central = QWidget()
         self.setCentralWidget(central)
         root_layout = QVBoxLayout(central)
-        root_layout.setContentsMargins(ui.Theme.WINDOW_PADDING, ui.Theme.WINDOW_PADDING, ui.Theme.WINDOW_PADDING, 0)
-        root_layout.setSpacing(ui.Theme.SPACE_2)
+        root_layout.setContentsMargins(
+            *ui.box_padding(
+                (
+                    ui.Theme.WINDOW_PADDING,
+                    ui.Theme.WINDOW_PADDING,
+                    ui.Theme.WINDOW_PADDING,
+                    0,
+                )
+            )
+        )
+        root_layout.setSpacing(ui.spacing("group"))
 
         # -- Top toolbar --
         self._sim_cb = ui.check_box("Simulated", checked=True)

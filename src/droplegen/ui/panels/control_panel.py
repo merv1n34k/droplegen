@@ -43,7 +43,7 @@ class ChannelWidget(QWidget):
 
         group, layout = ui.section(name)
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(*ui.box_padding("none"))
         outer.addWidget(group)
 
         # Header row: mode + stop
@@ -60,7 +60,7 @@ class ChannelWidget(QWidget):
 
         # Flow row: value + entry + set
         flow_row = QHBoxLayout()
-        flow_row.setSpacing(4)
+        flow_row.setSpacing(ui.spacing("control"))
         flow_lbl = _small_label("Flow:")
         flow_row.addWidget(flow_lbl)
         self._flow_value = QLabel("---")
@@ -82,7 +82,7 @@ class ChannelWidget(QWidget):
 
         # Pressure row: value + entry + set
         press_row = QHBoxLayout()
-        press_row.setSpacing(4)
+        press_row.setSpacing(ui.spacing("control"))
         press_lbl = _small_label("Press:")
         press_row.addWidget(press_lbl)
         self._press_value = QLabel("---")
@@ -104,7 +104,7 @@ class ChannelWidget(QWidget):
 
         # Calibration row: Fluid [combo] a:[__] b:[__] c:[__] [Apply]
         cal_row = QHBoxLayout()
-        cal_row.setSpacing(4)
+        cal_row.setSpacing(ui.spacing("control"))
         cal_lbl = _small_label("Fluid:")
         cal_row.addWidget(cal_lbl)
         self._fluid_combo = ui.combo_box(SENSOR_CALIBRATIONS.keys())
@@ -124,7 +124,7 @@ class ChannelWidget(QWidget):
 
         # Regulation response row: Resp: [__] s [Set]
         resp_row = QHBoxLayout()
-        resp_row.setSpacing(4)
+        resp_row.setSpacing(ui.spacing("control"))
         resp_lbl = _small_label("Resp:")
         resp_row.addWidget(resp_lbl)
         self._resp_entry = ui.int_box(minimum=2, maximum=3600, value=2)
@@ -243,8 +243,8 @@ class ControlPanel(QWidget):
         self._channel_widgets: list[ChannelWidget] = []
 
         self._layout = QVBoxLayout(self)
-        self._layout.setContentsMargins(4, 4, 4, 4)
-        self._layout.setSpacing(4)
+        self._layout.setContentsMargins(*ui.box_padding("control"))
+        self._layout.setSpacing(ui.spacing("control"))
 
         header = QLabel("Channel Control")
         header.setFont(QFont("", 14, QFont.Weight.Bold))

@@ -37,14 +37,14 @@ class StepBlock(QWidget):
         self._flow_inputs: list[QLineEdit] = []
 
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(0, 0, 0, 0)
-        main_layout.setSpacing(0)
+        main_layout.setContentsMargins(*ui.box_padding("none"))
+        main_layout.setSpacing(ui.spacing("none"))
 
         self._group, group_layout = ui.section("")
 
         # --- Header row: index, name, on_complete, remove ---
         header = QHBoxLayout()
-        header.setSpacing(6)
+        header.setSpacing(ui.spacing("control"))
         idx_label = QLabel(f"{step_idx + 1}.")
         idx_label.setFont(QFont("", 12, QFont.Weight.Bold))
         header.addWidget(idx_label)
@@ -89,7 +89,7 @@ class StepBlock(QWidget):
         # --- Flow setpoint rows ---
         for ch_idx, ch_name in enumerate(SENSOR_CHANNEL_NAMES):
             row = QHBoxLayout()
-            row.setSpacing(4)
+            row.setSpacing(ui.spacing("control"))
             lbl = _label(f"  {ch_name}:", kind="default")
             row.addWidget(lbl)
 
@@ -107,7 +107,7 @@ class StepBlock(QWidget):
 
         # --- Trigger row ---
         trigger_row = QHBoxLayout()
-        trigger_row.setSpacing(6)
+        trigger_row.setSpacing(ui.spacing("control"))
         trig_lbl = _label("  Trigger:", kind="default")
         trigger_row.addWidget(trig_lbl)
 
@@ -123,8 +123,8 @@ class StepBlock(QWidget):
         # --- Trigger params container ---
         self._params_container = QWidget()
         self._params_layout = QHBoxLayout(self._params_container)
-        self._params_layout.setContentsMargins(0, 0, 0, 0)
-        self._params_layout.setSpacing(6)
+        self._params_layout.setContentsMargins(*ui.box_padding("none"))
+        self._params_layout.setSpacing(ui.spacing("control"))
         group_layout.addWidget(self._params_container)
 
         # Create param widgets (will be shown/hidden based on trigger type)
@@ -132,7 +132,7 @@ class StepBlock(QWidget):
 
         # --- Confirmation row (non-empty = ask before running) ---
         confirm_row = QHBoxLayout()
-        confirm_row.setSpacing(6)
+        confirm_row.setSpacing(ui.spacing("control"))
         confirm_lbl = _label("  Confirm:", kind="default")
         confirm_row.addWidget(confirm_lbl)
         self._confirm_msg_input = ui.line_edit(placeholder="empty = no confirmation")
@@ -143,7 +143,7 @@ class StepBlock(QWidget):
 
         # --- Progress bar + status ---
         status_row = QHBoxLayout()
-        status_row.setSpacing(6)
+        status_row.setSpacing(ui.spacing("control"))
         self._status_row = status_row
         self._progress = QProgressBar()
         self._progress.setTextVisible(False)
@@ -385,8 +385,17 @@ class PipelinePanel(QWidget):
         self._active_confirm_msg = ""
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(4)
+        layout.setContentsMargins(
+            *ui.box_padding(
+                (
+                    ui.Theme.SPACE_2,
+                    ui.Theme.SPACE_1,
+                    ui.Theme.SPACE_2,
+                    ui.Theme.SPACE_1,
+                )
+            )
+        )
+        layout.setSpacing(ui.spacing("control"))
 
         # Header + state
         header_row = QHBoxLayout()
@@ -410,43 +419,41 @@ class PipelinePanel(QWidget):
         layout.addLayout(selector_row)
 
         # Buttons
-        btn_row = QHBoxLayout()
-
         self._start_btn = ui.button("Start", variant="success")
         self._start_btn.clicked.connect(self._on_start)
-        btn_row.addWidget(self._start_btn)
 
         self._pause_btn = ui.button("Pause")
         self._pause_btn.setEnabled(False)
         self._pause_btn.clicked.connect(self._on_pause)
-        btn_row.addWidget(self._pause_btn)
 
         self._stop_btn = ui.button("Stop", variant="danger")
         self._stop_btn.setEnabled(False)
         self._stop_btn.clicked.connect(self._on_stop)
-        btn_row.addWidget(self._stop_btn)
 
         self._skip_btn = ui.button("Skip")
         self._skip_btn.setEnabled(False)
         self._skip_btn.clicked.connect(self._on_skip)
-        btn_row.addWidget(self._skip_btn)
 
         self._proceed_btn = ui.button("Proceed", variant="success")
         self._proceed_btn.setEnabled(False)
         self._proceed_btn.clicked.connect(self._on_proceed)
-        btn_row.addWidget(self._proceed_btn)
 
-        btn_row.addStretch()
-        layout.addLayout(btn_row)
+        layout.addWidget(
+            ui.button_row(
+                self._start_btn,
+                self._pause_btn,
+                self._stop_btn,
+                self._skip_btn,
+                self._proceed_btn,
+                align="left",
+            )
+        )
 
         # Save row (next to Proceed per user request)
-        save_row = QHBoxLayout()
         self._save_name_input = ui.line_edit(placeholder="Pipeline name")
-        save_row.addWidget(self._save_name_input, stretch=1)
         self._save_btn = ui.button("Save", variant="primary")
         self._save_btn.clicked.connect(self._on_save)
-        save_row.addWidget(self._save_btn)
-        layout.addLayout(save_row)
+        layout.addWidget(ui.field_row(self._save_name_input, self._save_btn))
 
         # Confirmation message
         self._confirm_label = ui.status_label("", kind="warning", small=False)
@@ -466,8 +473,8 @@ class PipelinePanel(QWidget):
 
         self._steps_widget = QWidget()
         self._steps_layout = QVBoxLayout(self._steps_widget)
-        self._steps_layout.setSpacing(4)
-        self._steps_layout.setContentsMargins(0, 0, 0, 0)
+        self._steps_layout.setSpacing(ui.spacing("control"))
+        self._steps_layout.setContentsMargins(*ui.box_padding("none"))
         self._steps_layout.addStretch()
         self._scroll.setWidget(self._steps_widget)
 
